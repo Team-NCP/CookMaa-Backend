@@ -37,12 +37,11 @@ def health_check():
 async def generate_recipe(request: RecipeRequest):
     """Generate recipe from YouTube URL using Gemini 1.5 Flash"""
     
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_api_key:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    print(f"🎬 Received recipe request for URL: {request.youtube_url}")
+    print(f"👥 Target servings: {request.target_servings}")
     
-    # For now, return a mock response since we need to implement the actual Gemini integration
     # TODO: Implement actual Gemini video analysis
+    # For now, return a mock response to test iOS integration
     
     return RecipeResponse(
         title="Mock Recipe from Railway Backend",

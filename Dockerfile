@@ -1,13 +1,13 @@
-FROM python:3.11-slim
+FROM python:3-alpine
 
 WORKDIR /app
 
-# Copy minimal requirements and install
+# Copy project files
 COPY requirements.minimal.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy minimal app
 COPY app.py .
 
-# Use Hypercorn with IPv6 binding for Railway
-CMD ["sh", "-c", "hypercorn app:app --bind [::]:${PORT:-8000}"]
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Use Railway's recommended command
+CMD ["hypercorn", "app:app", "--bind", "::"]

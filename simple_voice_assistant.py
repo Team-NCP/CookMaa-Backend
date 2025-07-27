@@ -10,6 +10,7 @@ import asyncio
 import logging
 import json
 import requests
+import time
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
@@ -34,8 +35,19 @@ class CookingVoiceAssistant:
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
         self.daily_api_key = os.getenv("DAILY_API_KEY")
         
-        if not all([self.groq_api_key, self.gemini_api_key, self.daily_api_key]):
-            logger.error("Missing required API keys")
+        # Log missing keys but don't fail initialization
+        missing_keys = []
+        if not self.groq_api_key:
+            missing_keys.append("GROQ_API_KEY")
+        if not self.gemini_api_key:
+            missing_keys.append("GEMINI_API_KEY")
+        if not self.daily_api_key:
+            missing_keys.append("DAILY_API_KEY")
+            
+        if missing_keys:
+            logger.warning(f"Missing API keys: {missing_keys}. Some features may not work.")
+        else:
+            logger.info("All API keys configured successfully")
     
     def set_recipe_context(self, recipe_data: dict, step_index: int = 0):
         """Set current recipe context for voice interactions"""
@@ -215,6 +227,22 @@ app = FastAPI(title="CookMaa Voice Assistant API", version="1.0.0")
 # Global assistant instance
 voice_assistant = CookingVoiceAssistant()
 
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "service": "CookMaa Voice Assistant",
+        "status": "running",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "docs": "/docs",
+            "test_voice": "/test-voice",
+            "start_session": "/start-voice-session",
+            "process_command": "/process-voice-command"
+        }
+    }
+
 # Pydantic models
 class RecipeContext(BaseModel):
     title: str
@@ -237,16 +265,27 @@ class VoiceCommandRequest(BaseModel):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": "CookMaa Voice Assistant",
-        "version": "1.0.0",
-        "apis": {
-            "groq": "✅" if voice_assistant.groq_api_key else "❌",
-            "gemini": "✅" if voice_assistant.gemini_api_key else "❌",
-            "daily": "✅" if voice_assistant.daily_api_key else "❌"
+    try:
+        # Basic health check - just return healthy status
+        return {
+            "status": "healthy",
+            "service": "CookMaa Voice Assistant",
+            "version": "1.0.0",
+            "timestamp": int(time.time()),
+            "apis": {
+                "groq": "✅" if voice_assistant.groq_api_key else "❌",
+                "gemini": "✅" if voice_assistant.gemini_api_key else "❌", 
+                "daily": "✅" if voice_assistant.daily_api_key else "❌"
+            }
         }
-    }
+    except Exception as e:
+        # Return a basic response even if there are issues
+        return {
+            "status": "degraded",
+            "service": "CookMaa Voice Assistant", 
+            "error": str(e),
+            "timestamp": int(time.time())
+        }
 
 @app.post("/start-voice-session")
 async def start_voice_session(request: VoiceSessionRequest):
@@ -339,13 +378,15 @@ async def test_voice():
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    # Check required environment variables
+    # Check environment variables but don't exit on missing ones
     required_env_vars = ["GROQ_API_KEY", "GEMINI_API_KEY", "DAILY_API_KEY"]
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     
     if missing_vars:
-        logger.error(f"❌ Missing environment variables: {missing_vars}")
-        exit(1)
+        logger.warning(f"⚠️ Missing environment variables: {missing_vars}")
+        logger.info("Service will start in degraded mode. Add environment variables for full functionality.")
+    else:
+        logger.info("✅ All environment variables configured")
     
     logger.info("🚀 Starting CookMaa Voice Assistant API...")
     

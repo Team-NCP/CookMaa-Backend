@@ -104,6 +104,98 @@ async def generate_recipe(request: RecipeRequest):
             print(f"📄 Error details: {e.__dict__}")
         raise HTTPException(status_code=500, detail=f"Video analysis failed: {str(e)}")
 
+def parse_natural_language_recipe(response_text: str, target_servings: int) -> Dict[str, Any]:
+    """Parse natural language recipe response into structured format"""
+    
+    # Extract sections based on headers
+    sections = {}
+    current_section = None
+    current_content = []
+    
+    for line in response_text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Check for section headers
+        if line.startswith('TITLE:'):
+            if current_section:
+                sections[current_section] = '\n'.join(current_content)
+            current_section = 'title'
+            current_content = [line[6:].strip()]
+        elif line.startswith('DESCRIPTION:'):
+            if current_section:
+                sections[current_section] = '\n'.join(current_content)
+            current_section = 'description'
+            current_content = [line[12:].strip()]
+        elif line.startswith('INGREDIENTS:'):
+            if current_section:
+                sections[current_section] = '\n'.join(current_content)
+            current_section = 'ingredients'
+            current_content = []
+        elif line.startswith('STEPS:'):
+            if current_section:
+                sections[current_section] = '\n'.join(current_content)
+            current_section = 'steps'
+            current_content = []
+        elif line.startswith('CHEF_WISDOM:'):
+            if current_section:
+                sections[current_section] = '\n'.join(current_content)
+            current_section = 'chef_wisdom'
+            current_content = [line[12:].strip()]
+        elif line.startswith('SCALING_NOTES:'):
+            if current_section:
+                sections[current_section] = '\n'.join(current_content)
+            current_section = 'scaling_notes'
+            current_content = [line[14:].strip()]
+        else:
+            if current_section:
+                current_content.append(line)
+    
+    # Add final section
+    if current_section:
+        sections[current_section] = '\n'.join(current_content)
+    
+    # Parse ingredients
+    ingredients = []
+    if 'ingredients' in sections:
+        for line in sections['ingredients'].split('\n'):
+            line = line.strip()
+            if line.startswith('- '):
+                ingredient_text = line[2:].strip()
+                # Simple parsing - can be enhanced
+                ingredients.append({
+                    "name": ingredient_text.split(',')[0] if ',' in ingredient_text else ingredient_text,
+                    "amount": "1",
+                    "unit": "",
+                    "notes": ingredient_text
+                })
+    
+    # Parse steps
+    steps = []
+    if 'steps' in sections:
+        for line in sections['steps'].split('\n'):
+            line = line.strip()
+            if re.match(r'^\d+\.', line):
+                step_text = re.sub(r'^\d+\.\s*', '', line)
+                steps.append({
+                    "instruction": step_text,
+                    "estimated_time": 300  # Default 5 minutes
+                })
+    
+    return {
+        "title": sections.get('title', 'Unknown Recipe'),
+        "description": sections.get('description', 'A delicious recipe'),
+        "cuisine": "Unknown",  # Could be extracted from description
+        "difficulty": "Medium",
+        "total_time": len(steps) * 300,  # Estimate based on steps
+        "servings": target_servings,
+        "ingredients": ingredients,
+        "steps": steps,
+        "chefs_wisdom": sections.get('chef_wisdom', ''),
+        "scaling_notes": sections.get('scaling_notes', ''),
+        "original_servings": 4  # Default, could be parsed from scaling notes
+    }
 
 async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[str, Any]:
     """Analyze YouTube cooking video using Gemini 1.5 Flash"""
@@ -113,37 +205,47 @@ async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[
     # Create the model - use gemini-1.5-flash-002 for better video support
     model = genai.GenerativeModel('gemini-1.5-flash-002')
     
-    # Recipe extraction prompt
+    # Natural language prompt from iOS app (more reliable than JSON parsing)
     prompt = f"""
-    Analyze this YouTube cooking video and extract a complete recipe. Return ONLY a valid JSON object with this exact structure:
+    Watch this cooking video carefully and provide a complete recipe. Act as an experienced chef teaching someone in your kitchen. Pay close attention to every detail - ingredients, techniques, timing, visual cues, and any tips or cultural context shared.
 
-    {{
-        "title": "Recipe name from the video",
-        "description": "Brief description of the dish",
-        "cuisine": "Cuisine type (e.g., Italian, Indian, American)",
-        "difficulty": "Easy|Medium|Hard|Expert",
-        "total_time": 1800,
-        "servings": {target_servings},
-        "ingredients": [
-            {{"name": "ingredient name", "amount": "quantity", "unit": "unit", "notes": "optional notes"}}
-        ],
-        "steps": [
-            {{"instruction": "Detailed cooking instruction", "estimated_time": 300}}
-        ],
-        "chefs_wisdom": "Chef's tips and important notes",
-        "scaling_notes": "Notes about scaling this recipe",
-        "original_servings": 4
-    }}
+    CRITICAL: First identify how many people this recipe actually serves by watching the video context, portion sizes, and any mentions by the chef.
 
-    Important requirements:
-    - Scale all ingredients to exactly {target_servings} servings
-    - Include all ingredients mentioned in the video
-    - Break down into clear, sequential cooking steps
-    - Estimate realistic time for each step in seconds
-    - Include cooking techniques and temperatures when mentioned
-    - Extract any chef tips or important notes
-    - Return ONLY the JSON object, no additional text
-    - Ensure all JSON fields are properly formatted
+    INTELLIGENT SCALING APPROACH:
+    - DO NOT assume the recipe serves 4 people
+    - Identify actual serving size from video context (pot size, portions shown, chef's comments)
+    - Use COOKING KNOWLEDGE for scaling, not just mathematical proportions
+    - Apply ingredient-specific scaling rules:
+      * Rice: ~1/2 cup (100g) uncooked rice per person
+      * Pasta: ~100g dried pasta per person  
+      * Lentils/Dal: ~1/4 cup dried lentils per person
+      * Vegetables: Scale more generously (people like more veggies)
+      * Spices: Scale conservatively (start with less, can add more)
+      * Salt: Scale very conservatively 
+      * Oil/Ghee: Scale moderately (health consideration)
+    - Round to practical measurements (1/2, 1/4, 3/4 cups, not complex fractions)
+
+    Structure your response EXACTLY as follows with these headers:
+
+    TITLE: [Exact dish name from video]
+
+    DESCRIPTION: [Brief description - cuisine, difficulty, time, cultural context for {target_servings} people]
+
+    INGREDIENTS:
+    - [Ingredient 1 with amount, unit, preparation notes]
+    - [Ingredient 2 with amount, unit, preparation notes]
+    - [Continue for all ingredients...]
+
+    STEPS:
+    1. [Very detailed step with exact measurements - like "Take 1 cup basmati rice, rinse 3 times until water runs clear, then add to your cooking pot"]
+    2. [Next detailed step with specific actions and measurements]
+    3. [Continue with detailed, actionable steps...]
+
+    CHEF_WISDOM: [Rich context for voice assistant - tips, cultural notes, variations, storage]
+
+    SCALING_NOTES: Original serves [X] people, scaled to {target_servings} using cooking knowledge
+
+    Use simple headers (TITLE:, DESCRIPTION:, INGREDIENTS:, STEPS:, CHEF_WISDOM:, SCALING_NOTES:) for easy parsing.
     """
     
     try:
@@ -163,35 +265,15 @@ async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[
         print("📨 Received response from Gemini")
         print(f"📄 Raw response (first 500 chars): {response.text[:500]}...")
         
-        # Extract JSON from response
+        # Parse natural language response with headers
         response_text = response.text.strip()
-        
-        # Try to find JSON in the response
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if json_match:
-            json_text = json_match.group()
-        else:
-            json_text = response_text
-        
-        # Parse the JSON response
-        recipe_data = json.loads(json_text)
-        
-        # Validate required fields
-        required_fields = ['title', 'ingredients', 'steps']
-        for field in required_fields:
-            if field not in recipe_data:
-                raise ValueError(f"Missing required field: {field}")
+        recipe_data = parse_natural_language_recipe(response_text, target_servings)
         
         print(f"✅ Successfully extracted recipe: {recipe_data.get('title', 'Unknown')}")
         print(f"📊 Ingredients: {len(recipe_data.get('ingredients', []))}")
         print(f"📝 Steps: {len(recipe_data.get('steps', []))}")
         
         return recipe_data
-        
-    except json.JSONDecodeError as e:
-        print(f"❌ Failed to parse JSON response: {e}")
-        print(f"📄 Raw response: {response.text[:500]}...")
-        raise Exception("Failed to parse recipe data from video analysis")
         
     except Exception as e:
         print(f"❌ Error in video analysis: {str(e)}")

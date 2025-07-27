@@ -152,14 +152,12 @@ async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[
         
         # Use the correct FileData format for YouTube URLs
         response = model.generate_content([
-            genai.types.Content(
-                parts=[
-                    genai.types.Part(
-                        file_data=genai.types.FileData(file_uri=youtube_url)
-                    ),
-                    genai.types.Part(text=prompt)
-                ]
-            )
+            {
+                "file_data": {
+                    "file_uri": youtube_url
+                }
+            },
+            prompt
         ])
         
         print("📨 Received response from Gemini")

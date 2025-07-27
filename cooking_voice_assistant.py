@@ -146,23 +146,14 @@ async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[
     """
     
     try:
-        # Upload and analyze the video
-        print("📹 Uploading video to Gemini...")
-        video_file = genai.upload_file(youtube_url)
-        print("⏳ Waiting for video processing...")
+        # Gemini 1.5 Flash can analyze YouTube URLs directly
+        print("📹 Analyzing YouTube video directly with Gemini...")
         
-        # Wait for processing to complete
-        while video_file.state.name == "PROCESSING":
-            await asyncio.sleep(2)
-            video_file = genai.get_file(video_file.name)
-        
-        if video_file.state.name == "FAILED":
-            raise Exception(f"Video processing failed: {video_file.state}")
-        
-        print("🧠 Analyzing video content with Gemini 1.5 Flash...")
-        
-        # Generate recipe from video
-        response = model.generate_content([video_file, prompt])
+        # Generate recipe from YouTube URL directly
+        response = model.generate_content([
+            f"YouTube URL: {youtube_url}",
+            prompt
+        ])
         
         print("📝 Processing Gemini response...")
         
@@ -199,12 +190,3 @@ async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[
     except Exception as e:
         print(f"❌ Error in video analysis: {str(e)}")
         raise Exception(f"Video analysis failed: {str(e)}")
-    
-    finally:
-        # Clean up uploaded file
-        try:
-            if 'video_file' in locals():
-                genai.delete_file(video_file.name)
-                print("🗑️  Cleaned up uploaded video file")
-        except:
-            pass

@@ -128,6 +128,60 @@ async def test_gemini_direct():
             "error_type": type(e).__name__
         }
 
+@app.get("/debug/gemini-file-data")
+async def test_gemini_file_data():
+    """Test direct Gemini API call WITH file_data"""
+    if not GEMINI_API_KEY:
+        return {"error": "No API key configured"}
+    
+    try:
+        import requests
+        
+        # Test with file_data (same as recipe generation)
+        request_body = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": "Describe this video briefly"
+                        },
+                        {
+                            "file_data": {
+                                "mime_type": "video/*",
+                                "file_uri": "https://www.youtube.com/watch?v=hpE_lF5De3o"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.3,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 4096
+            }
+        }
+        
+        api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        headers = {"Content-Type": "application/json"}
+        params = {"key": GEMINI_API_KEY}
+        
+        response = requests.post(api_url, headers=headers, params=params, json=request_body, timeout=60)
+        
+        return {
+            "status": "success" if response.status_code == 200 else "error",
+            "status_code": response.status_code,
+            "response": response.json() if response.status_code == 200 else response.text,
+            "request_body": request_body
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
 @app.post("/generate-recipe")
 async def generate_recipe(request: RecipeRequest):
     """Generate recipe from YouTube URL using Gemini 1.5 Flash"""

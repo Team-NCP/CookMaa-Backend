@@ -1,0 +1,15 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+startCommand = "python cooking_voice_assistant.py"
+
+[environments.production.variables]
+PORT = "8000"
+LOG_LEVEL = "INFO"
+RAILWAY_ENVIRONMENT = "production"

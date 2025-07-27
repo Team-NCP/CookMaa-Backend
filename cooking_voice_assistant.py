@@ -88,8 +88,7 @@ async def generate_recipe(request: RecipeRequest):
     print(f"👥 Target servings: {request.target_servings}")
     
     if not GEMINI_API_KEY:
-        print("❌ No Gemini API key configured, returning mock response")
-        return _get_mock_response(request)
+        raise HTTPException(status_code=500, detail="Gemini API key not configured")
     
     try:
         # Analyze video with Gemini 1.5 Flash
@@ -103,30 +102,8 @@ async def generate_recipe(request: RecipeRequest):
         print(f"📊 Error type: {type(e).__name__}")
         if hasattr(e, '__dict__'):
             print(f"📄 Error details: {e.__dict__}")
-        print("🔄 Falling back to mock response for development")
-        return _get_mock_response(request)
+        raise HTTPException(status_code=500, detail=f"Video analysis failed: {str(e)}")
 
-def _get_mock_response(request: RecipeRequest) -> RecipeResponse:
-    """Return mock response for development/testing"""
-    return RecipeResponse(
-        title="Mock Recipe from Railway Backend",
-        description=f"A delicious recipe for {request.target_servings} people from {request.youtube_url}",
-        cuisine="International", 
-        difficulty="Medium",
-        total_time=1800,
-        servings=request.target_servings,
-        ingredients=[
-            {"name": "Sample ingredient 1", "amount": "1", "unit": "cup", "notes": ""},
-            {"name": "Sample ingredient 2", "amount": "2", "unit": "tbsp", "notes": ""}
-        ],
-        steps=[
-            {"step_number": 1, "instruction": "This is a mock step from Railway backend", "estimated_time": 300},
-            {"step_number": 2, "instruction": "Another mock step", "estimated_time": 600}
-        ],
-        chefs_wisdom="This is mock recipe data from the Railway backend. Replace with actual Gemini integration.",
-        scaling_notes=f"Scaled to {request.target_servings} servings",
-        original_servings=4
-    )
 
 async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[str, Any]:
     """Analyze YouTube cooking video using Gemini 1.5 Flash"""

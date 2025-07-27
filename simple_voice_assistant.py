@@ -227,6 +227,12 @@ app = FastAPI(title="CookMaa Voice Assistant API", version="1.0.0")
 # Global assistant instance
 voice_assistant = CookingVoiceAssistant()
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the app on startup"""
+    logger.info("🚀 CookMaa Voice Assistant starting up...")
+    logger.info("✅ Voice assistant initialized successfully")
+
 @app.get("/")
 async def root():
     """Root endpoint"""
@@ -264,28 +270,8 @@ class VoiceCommandRequest(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    try:
-        # Basic health check - just return healthy status
-        return {
-            "status": "healthy",
-            "service": "CookMaa Voice Assistant",
-            "version": "1.0.0",
-            "timestamp": int(time.time()),
-            "apis": {
-                "groq": "✅" if voice_assistant.groq_api_key else "❌",
-                "gemini": "✅" if voice_assistant.gemini_api_key else "❌", 
-                "daily": "✅" if voice_assistant.daily_api_key else "❌"
-            }
-        }
-    except Exception as e:
-        # Return a basic response even if there are issues
-        return {
-            "status": "degraded",
-            "service": "CookMaa Voice Assistant", 
-            "error": str(e),
-            "timestamp": int(time.time())
-        }
+    """Health check endpoint - simplified for Railway"""
+    return {"status": "healthy"}
 
 @app.post("/start-voice-session")
 async def start_voice_session(request: VoiceSessionRequest):
@@ -392,4 +378,12 @@ if __name__ == "__main__":
     
     # Run the API server
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    logger.info(f"🌐 Starting server on 0.0.0.0:{port}")
+    
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=port,
+        log_level="info",
+        access_log=True
+    )

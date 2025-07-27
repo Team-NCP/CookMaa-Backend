@@ -1,0 +1,18 @@
+# Pipecat Voice AI Framework (Budget Setup)
+pipecat-ai[daily,groq,openai,google]>=0.0.100
+
+# FastAPI for API endpoints
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Additional dependencies
+python-multipart>=0.0.6
+python-dotenv>=1.0.0
+aiofiles>=23.2.1
+
+# Audio processing
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Logging and monitoring
+structlog>=23.2.0

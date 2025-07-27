@@ -110,47 +110,92 @@ async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[
     
     print(f"🔍 Starting Gemini video analysis for: {youtube_url}")
     
-    # Create the model
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Create the model - use gemini-1.5-flash-002 for better video support
+    model = genai.GenerativeModel('gemini-1.5-flash-002')
     
-    # Simple natural language prompt to see what Gemini actually returns
+    # Recipe extraction prompt
     prompt = f"""
-    Watch this YouTube cooking video at {youtube_url} and tell me exactly what recipe is being made. 
-    
-    What is the dish called? What ingredients do they use? What are the cooking steps?
-    
-    Please analyze the actual video content and give me a detailed description of what you see.
+    Analyze this YouTube cooking video and extract a complete recipe. Return ONLY a valid JSON object with this exact structure:
+
+    {{
+        "title": "Recipe name from the video",
+        "description": "Brief description of the dish",
+        "cuisine": "Cuisine type (e.g., Italian, Indian, American)",
+        "difficulty": "Easy|Medium|Hard|Expert",
+        "total_time": 1800,
+        "servings": {target_servings},
+        "ingredients": [
+            {{"name": "ingredient name", "amount": "quantity", "unit": "unit", "notes": "optional notes"}}
+        ],
+        "steps": [
+            {{"instruction": "Detailed cooking instruction", "estimated_time": 300}}
+        ],
+        "chefs_wisdom": "Chef's tips and important notes",
+        "scaling_notes": "Notes about scaling this recipe",
+        "original_servings": 4
+    }}
+
+    Important requirements:
+    - Scale all ingredients to exactly {target_servings} servings
+    - Include all ingredients mentioned in the video
+    - Break down into clear, sequential cooking steps
+    - Estimate realistic time for each step in seconds
+    - Include cooking techniques and temperatures when mentioned
+    - Extract any chef tips or important notes
+    - Return ONLY the JSON object, no additional text
+    - Ensure all JSON fields are properly formatted
     """
     
     try:
-        print("📹 Calling Gemini to analyze YouTube video...")
-        print(f"🔗 URL being sent: {youtube_url}")
-        print(f"📝 Prompt: {prompt[:100]}...")
+        print("📹 Calling Gemini with proper FileData format...")
+        print(f"🔗 URL being analyzed: {youtube_url}")
         
-        # Generate analysis from YouTube URL
-        response = model.generate_content(prompt)
+        # Use the correct FileData format for YouTube URLs
+        response = model.generate_content([
+            genai.types.Content(
+                parts=[
+                    genai.types.Part(
+                        file_data=genai.types.FileData(file_uri=youtube_url)
+                    ),
+                    genai.types.Part(text=prompt)
+                ]
+            )
+        ])
         
         print("📨 Received response from Gemini")
         print(f"📄 Raw response (first 500 chars): {response.text[:500]}...")
-        print(f"📏 Full response length: {len(response.text)} characters")
         
-        # For now, just return the raw response to see what we're getting
-        return {
-            "title": "DEBUG - Raw Gemini Response",
-            "description": response.text,
-            "cuisine": "Unknown",
-            "difficulty": "Medium", 
-            "total_time": 1800,
-            "servings": target_servings,
-            "ingredients": [{"name": "DEBUG", "amount": "1", "unit": "test", "notes": "Raw Gemini response in description field"}],
-            "steps": [{"instruction": "Check the description field for the actual Gemini response", "estimated_time": 60}],
-            "chefs_wisdom": f"URL tested: {youtube_url}",
-            "scaling_notes": "This is a debug response",
-            "original_servings": 4
-        }
+        # Extract JSON from response
+        response_text = response.text.strip()
+        
+        # Try to find JSON in the response
+        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        if json_match:
+            json_text = json_match.group()
+        else:
+            json_text = response_text
+        
+        # Parse the JSON response
+        recipe_data = json.loads(json_text)
+        
+        # Validate required fields
+        required_fields = ['title', 'ingredients', 'steps']
+        for field in required_fields:
+            if field not in recipe_data:
+                raise ValueError(f"Missing required field: {field}")
+        
+        print(f"✅ Successfully extracted recipe: {recipe_data.get('title', 'Unknown')}")
+        print(f"📊 Ingredients: {len(recipe_data.get('ingredients', []))}")
+        print(f"📝 Steps: {len(recipe_data.get('steps', []))}")
+        
+        return recipe_data
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Failed to parse JSON response: {e}")
+        print(f"📄 Raw response: {response.text[:500]}...")
+        raise Exception("Failed to parse recipe data from video analysis")
         
     except Exception as e:
-        print(f"❌ ACTUAL Error in Gemini call: {str(e)}")
+        print(f"❌ Error in video analysis: {str(e)}")
         print(f"📊 Error type: {type(e).__name__}")
-        print(f"📄 Error details: {e}")
-        raise Exception(f"Real Gemini error: {str(e)}")
+        raise Exception(f"Video analysis failed: {str(e)}")

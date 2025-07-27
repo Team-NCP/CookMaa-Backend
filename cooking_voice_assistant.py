@@ -43,7 +43,7 @@ class RecipeResponse(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"Hello": "Railway", "status": "CookMaa Backend Running", "port": os.getenv("PORT", "8000")}
+    return {"Hello": "Railway", "status": "CookMaa Backend Running with Gemini", "port": os.getenv("PORT", "8000")}
 
 @app.get("/health")
 def health_check():
@@ -198,76 +198,113 @@ def parse_natural_language_recipe(response_text: str, target_servings: int) -> D
     }
 
 async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[str, Any]:
-    """Analyze YouTube cooking video using Gemini 1.5 Flash"""
+    """Analyze YouTube cooking video using Gemini 1.5 Flash - exact iOS implementation"""
     
     print(f"🔍 Starting Gemini video analysis for: {youtube_url}")
     
-    # Create the model - use gemini-1.5-flash-002 for better video support
-    model = genai.GenerativeModel('gemini-1.5-flash-002')
+    # Exact prompt from iOS app
+    prompt = f"""Watch this cooking video carefully and provide a complete recipe. Act as an experienced chef teaching someone in your kitchen. Pay close attention to every detail - ingredients, techniques, timing, visual cues, and any tips or cultural context shared.
+
+CRITICAL: First identify how many people this recipe actually serves by watching the video context, portion sizes, and any mentions by the chef.
+
+INTELLIGENT SCALING APPROACH:
+- DO NOT assume the recipe serves 4 people
+- Identify actual serving size from video context (pot size, portions shown, chef's comments)
+- Use COOKING KNOWLEDGE for scaling, not just mathematical proportions
+- Apply ingredient-specific scaling rules:
+  * Rice: ~1/2 cup (100g) uncooked rice per person
+  * Pasta: ~100g dried pasta per person  
+  * Lentils/Dal: ~1/4 cup dried lentils per person
+  * Vegetables: Scale more generously (people like more veggies)
+  * Spices: Scale conservatively (start with less, can add more)
+  * Salt: Scale very conservatively 
+  * Oil/Ghee: Scale moderately (health consideration)
+- Round to practical measurements (1/2, 1/4, 3/4 cups, not complex fractions)
+
+Structure your response EXACTLY as follows with these headers:
+
+TITLE: [Exact dish name from video]
+
+DESCRIPTION: [Brief description - cuisine, difficulty, time, cultural context for {target_servings} people]
+
+INGREDIENTS:
+- [Ingredient 1 with amount, unit, preparation notes]
+- [Ingredient 2 with amount, unit, preparation notes]
+- [Continue for all ingredients...]
+
+STEPS:
+1. [Very detailed step with exact measurements - like "Take 1 cup basmati rice, rinse 3 times until water runs clear, then add to your cooking pot"]
+2. [Next detailed step with specific actions and measurements]
+3. [Continue with detailed, actionable steps...]
+
+CHEF_WISDOM: [Rich context for voice assistant - tips, cultural notes, variations, storage]
+
+SCALING_NOTES: Original serves [X] people, scaled to {target_servings} using cooking knowledge
+
+Use simple headers (TITLE:, DESCRIPTION:, INGREDIENTS:, STEPS:, CHEF_WISDOM:, SCALING_NOTES:) for easy parsing."""
     
-    # Natural language prompt from iOS app (more reliable than JSON parsing)
-    prompt = f"""
-    Watch this cooking video carefully and provide a complete recipe. Act as an experienced chef teaching someone in your kitchen. Pay close attention to every detail - ingredients, techniques, timing, visual cues, and any tips or cultural context shared.
-
-    CRITICAL: First identify how many people this recipe actually serves by watching the video context, portion sizes, and any mentions by the chef.
-
-    INTELLIGENT SCALING APPROACH:
-    - DO NOT assume the recipe serves 4 people
-    - Identify actual serving size from video context (pot size, portions shown, chef's comments)
-    - Use COOKING KNOWLEDGE for scaling, not just mathematical proportions
-    - Apply ingredient-specific scaling rules:
-      * Rice: ~1/2 cup (100g) uncooked rice per person
-      * Pasta: ~100g dried pasta per person  
-      * Lentils/Dal: ~1/4 cup dried lentils per person
-      * Vegetables: Scale more generously (people like more veggies)
-      * Spices: Scale conservatively (start with less, can add more)
-      * Salt: Scale very conservatively 
-      * Oil/Ghee: Scale moderately (health consideration)
-    - Round to practical measurements (1/2, 1/4, 3/4 cups, not complex fractions)
-
-    Structure your response EXACTLY as follows with these headers:
-
-    TITLE: [Exact dish name from video]
-
-    DESCRIPTION: [Brief description - cuisine, difficulty, time, cultural context for {target_servings} people]
-
-    INGREDIENTS:
-    - [Ingredient 1 with amount, unit, preparation notes]
-    - [Ingredient 2 with amount, unit, preparation notes]
-    - [Continue for all ingredients...]
-
-    STEPS:
-    1. [Very detailed step with exact measurements - like "Take 1 cup basmati rice, rinse 3 times until water runs clear, then add to your cooking pot"]
-    2. [Next detailed step with specific actions and measurements]
-    3. [Continue with detailed, actionable steps...]
-
-    CHEF_WISDOM: [Rich context for voice assistant - tips, cultural notes, variations, storage]
-
-    SCALING_NOTES: Original serves [X] people, scaled to {target_servings} using cooking knowledge
-
-    Use simple headers (TITLE:, DESCRIPTION:, INGREDIENTS:, STEPS:, CHEF_WISDOM:, SCALING_NOTES:) for easy parsing.
-    """
+    # Exact API call structure from iOS app
+    request_body = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    },
+                    {
+                        "file_data": {
+                            "mime_type": "video/*",
+                            "file_uri": youtube_url
+                        }
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.3,
+            "topK": 40,
+            "topP": 0.95,
+            "maxOutputTokens": 4096
+        }
+    }
     
     try:
-        print("📹 Calling Gemini with proper FileData format...")
+        print("📹 Making direct API call to Gemini (iOS implementation)...")
         print(f"🔗 URL being analyzed: {youtube_url}")
         
-        # Use the correct FileData format for YouTube URLs
-        response = model.generate_content([
-            {
-                "file_data": {
-                    "file_uri": youtube_url
-                }
-            },
-            prompt
-        ])
+        # Direct API call using requests (same as iOS)
+        import requests
+        api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        headers = {
+            "Content-Type": "application/json"
+        }
+        params = {
+            "key": GEMINI_API_KEY
+        }
         
-        print("📨 Received response from Gemini")
-        print(f"📄 Raw response (first 500 chars): {response.text[:500]}...")
+        response = requests.post(
+            api_url,
+            headers=headers,
+            params=params,
+            json=request_body,
+            timeout=300
+        )
+        
+        print("📨 Received response from Gemini API")
+        print(f"📊 Status code: {response.status_code}")
+        
+        if response.status_code != 200:
+            print(f"❌ API error: {response.text}")
+            raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
+        
+        # Parse response exactly like iOS
+        response_data = response.json()
+        content = response_data["candidates"][0]["content"]["parts"][0]["text"]
+        
+        print(f"📄 Raw response (first 500 chars): {content[:500]}...")
         
         # Parse natural language response with headers
-        response_text = response.text.strip()
-        recipe_data = parse_natural_language_recipe(response_text, target_servings)
+        recipe_data = parse_natural_language_recipe(content, target_servings)
         
         print(f"✅ Successfully extracted recipe: {recipe_data.get('title', 'Unknown')}")
         print(f"📊 Ingredients: {len(recipe_data.get('ingredients', []))}")

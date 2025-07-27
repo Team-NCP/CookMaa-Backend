@@ -3,7 +3,7 @@ FROM python:3-alpine
 WORKDIR /app
 
 # Copy project files
-COPY requirements.minimal.txt requirements.txt
+COPY requirements.txt .
 COPY cooking_voice_assistant.py .
 
 # Install dependencies

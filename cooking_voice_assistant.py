@@ -49,6 +49,16 @@ def read_root():
 def health_check():
     return {"status": "healthy"}
 
+@app.get("/debug/env")
+def debug_environment():
+    """Debug endpoint to check environment configuration"""
+    return {
+        "gemini_api_key_configured": bool(GEMINI_API_KEY),
+        "gemini_api_key_length": len(GEMINI_API_KEY) if GEMINI_API_KEY else 0,
+        "port": os.getenv("PORT", "not_set"),
+        "environment_vars_count": len([k for k in os.environ.keys() if not k.startswith("_")])
+    }
+
 @app.post("/generate-recipe")
 async def generate_recipe(request: RecipeRequest):
     """Generate recipe from YouTube URL using Gemini 1.5 Flash"""

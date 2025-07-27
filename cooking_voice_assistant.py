@@ -59,6 +59,27 @@ def debug_environment():
         "environment_vars_count": len([k for k in os.environ.keys() if not k.startswith("_")])
     }
 
+@app.get("/debug/gemini")
+async def test_gemini():
+    """Test Gemini API connectivity"""
+    if not GEMINI_API_KEY:
+        return {"error": "No API key configured"}
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content("Say 'Hello from Gemini!' in JSON format: {\"message\": \"your response\"}")
+        return {
+            "status": "success",
+            "response": response.text,
+            "model": "gemini-1.5-flash"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
 @app.post("/generate-recipe")
 async def generate_recipe(request: RecipeRequest):
     """Generate recipe from YouTube URL using Gemini 1.5 Flash"""
@@ -79,6 +100,9 @@ async def generate_recipe(request: RecipeRequest):
         
     except Exception as e:
         print(f"❌ Error analyzing video with Gemini: {str(e)}")
+        print(f"📊 Error type: {type(e).__name__}")
+        if hasattr(e, '__dict__'):
+            print(f"📄 Error details: {e.__dict__}")
         print("🔄 Falling back to mock response for development")
         return _get_mock_response(request)
 

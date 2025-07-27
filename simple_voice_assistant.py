@@ -364,22 +364,24 @@ async def test_voice():
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
+    # Get port from environment - Railway sets this
+    port = int(os.getenv("PORT", 8000))
+    print(f"🌐 Railway PORT environment variable: {os.getenv('PORT', 'NOT SET')}")
+    print(f"🌐 Starting server on 0.0.0.0:{port}")
+    
     # Check environment variables but don't exit on missing ones
     required_env_vars = ["GROQ_API_KEY", "GEMINI_API_KEY", "DAILY_API_KEY"]
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     
     if missing_vars:
-        logger.warning(f"⚠️ Missing environment variables: {missing_vars}")
-        logger.info("Service will start in degraded mode. Add environment variables for full functionality.")
+        print(f"⚠️ Missing environment variables: {missing_vars}")
+        print("Service will start in degraded mode. Add environment variables for full functionality.")
     else:
-        logger.info("✅ All environment variables configured")
+        print("✅ All environment variables configured")
     
-    logger.info("🚀 Starting CookMaa Voice Assistant API...")
+    print("🚀 Starting CookMaa Voice Assistant API...")
     
     # Run the API server
-    port = int(os.getenv("PORT", 8000))
-    logger.info(f"🌐 Starting server on 0.0.0.0:{port}")
-    
     uvicorn.run(
         app, 
         host="0.0.0.0", 

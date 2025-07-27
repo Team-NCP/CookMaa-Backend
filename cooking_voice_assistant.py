@@ -80,6 +80,54 @@ async def test_gemini():
             "error_type": type(e).__name__
         }
 
+@app.get("/debug/gemini-direct")
+async def test_gemini_direct():
+    """Test direct Gemini API call without file_data"""
+    if not GEMINI_API_KEY:
+        return {"error": "No API key configured"}
+    
+    try:
+        import requests
+        
+        # Test with simple text prompt (no file_data)
+        request_body = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": "Say hello in JSON format with a message field"
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.3,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 4096
+            }
+        }
+        
+        api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        headers = {"Content-Type": "application/json"}
+        params = {"key": GEMINI_API_KEY}
+        
+        response = requests.post(api_url, headers=headers, params=params, json=request_body, timeout=30)
+        
+        return {
+            "status": "success" if response.status_code == 200 else "error",
+            "status_code": response.status_code,
+            "response": response.json() if response.status_code == 200 else response.text,
+            "api_key_length": len(GEMINI_API_KEY)
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
 @app.post("/generate-recipe")
 async def generate_recipe(request: RecipeRequest):
     """Generate recipe from YouTube URL using Gemini 1.5 Flash"""
@@ -243,7 +291,7 @@ SCALING_NOTES: Original serves [X] people, scaled to {target_servings} using coo
 
 Use simple headers (TITLE:, DESCRIPTION:, INGREDIENTS:, STEPS:, CHEF_WISDOM:, SCALING_NOTES:) for easy parsing."""
     
-    # Exact API call structure from iOS app
+    # Exact API call structure from iOS app (matching exact structure)
     request_body = {
         "contents": [
             {
@@ -267,6 +315,8 @@ Use simple headers (TITLE:, DESCRIPTION:, INGREDIENTS:, STEPS:, CHEF_WISDOM:, SC
             "maxOutputTokens": 4096
         }
     }
+    
+    print(f"📋 Request body: {json.dumps(request_body, indent=2)}")
     
     try:
         print("📹 Making direct API call to Gemini (iOS implementation)...")

@@ -1,4 +1,4 @@
-# Simplified Voice Assistant Requirements (No Pipecat)
+# CookMaa Backend Requirements
 
 # FastAPI for API endpoints
 fastapi>=0.104.0
@@ -12,6 +12,13 @@ python-dotenv>=1.0.0
 
 # Data validation
 pydantic>=2.5.0
+
+# Google Generative AI for Gemini 1.5 Flash
+google-generativeai>=0.3.0
+
+# YouTube data extraction
+youtube-transcript-api>=0.6.0
+pytube>=15.0.0
 
 # Audio processing (optional)
 numpy>=1.24.0

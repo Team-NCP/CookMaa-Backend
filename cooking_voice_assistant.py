@@ -1,12 +1,28 @@
 #!/usr/bin/env python3
 
 import os
-import requests
+import asyncio
+import google.generativeai as genai
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from dotenv import load_dotenv
+import json
+import re
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI()
+
+# Configure Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    print("⚠️  WARNING: GEMINI_API_KEY not found in environment variables")
+    print("💡 Set GEMINI_API_KEY environment variable for video analysis")
+else:
+    genai.configure(api_key=GEMINI_API_KEY)
+    print("✅ Gemini API configured successfully")
 
 class RecipeRequest(BaseModel):
     youtube_url: str
@@ -40,13 +56,28 @@ async def generate_recipe(request: RecipeRequest):
     print(f"🎬 Received recipe request for URL: {request.youtube_url}")
     print(f"👥 Target servings: {request.target_servings}")
     
-    # TODO: Implement actual Gemini video analysis
-    # For now, return a mock response to test iOS integration
+    if not GEMINI_API_KEY:
+        print("❌ No Gemini API key configured, returning mock response")
+        return _get_mock_response(request)
     
+    try:
+        # Analyze video with Gemini 1.5 Flash
+        recipe_data = await analyze_youtube_video(request.youtube_url, request.target_servings)
+        
+        print("✅ Successfully generated recipe using Gemini 1.5 Flash")
+        return RecipeResponse(**recipe_data)
+        
+    except Exception as e:
+        print(f"❌ Error analyzing video with Gemini: {str(e)}")
+        print("🔄 Falling back to mock response for development")
+        return _get_mock_response(request)
+
+def _get_mock_response(request: RecipeRequest) -> RecipeResponse:
+    """Return mock response for development/testing"""
     return RecipeResponse(
         title="Mock Recipe from Railway Backend",
         description=f"A delicious recipe for {request.target_servings} people from {request.youtube_url}",
-        cuisine="International",
+        cuisine="International", 
         difficulty="Medium",
         total_time=1800,
         servings=request.target_servings,
@@ -62,3 +93,108 @@ async def generate_recipe(request: RecipeRequest):
         scaling_notes=f"Scaled to {request.target_servings} servings",
         original_servings=4
     )
+
+async def analyze_youtube_video(youtube_url: str, target_servings: int) -> Dict[str, Any]:
+    """Analyze YouTube cooking video using Gemini 1.5 Flash"""
+    
+    print(f"🔍 Starting Gemini video analysis for: {youtube_url}")
+    
+    # Create the model
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # Detailed prompt for recipe extraction
+    prompt = f"""
+    Analyze this YouTube cooking video and extract a complete recipe. Return ONLY a valid JSON object with this exact structure:
+
+    {{
+        "title": "Recipe name from the video",
+        "description": "Brief description of the dish",
+        "cuisine": "Cuisine type (e.g., Italian, Indian, American)",
+        "difficulty": "Easy|Medium|Hard|Expert",
+        "total_time": 1800,
+        "servings": {target_servings},
+        "ingredients": [
+            {{"name": "ingredient name", "amount": "quantity", "unit": "unit", "notes": "optional notes"}}
+        ],
+        "steps": [
+            {{"instruction": "Detailed cooking instruction", "estimated_time": 300}}
+        ],
+        "chefs_wisdom": "Chef's tips and important notes",
+        "scaling_notes": "Notes about scaling this recipe",
+        "original_servings": 4
+    }}
+
+    Important requirements:
+    - Scale all ingredients to exactly {target_servings} servings
+    - Include all ingredients mentioned in the video
+    - Break down into clear, sequential cooking steps
+    - Estimate realistic time for each step in seconds
+    - Include cooking techniques and temperatures when mentioned
+    - Extract any chef tips or important notes
+    - Return ONLY the JSON object, no additional text
+    - Ensure all JSON fields are properly formatted
+    """
+    
+    try:
+        # Upload and analyze the video
+        print("📹 Uploading video to Gemini...")
+        video_file = genai.upload_file(youtube_url)
+        print("⏳ Waiting for video processing...")
+        
+        # Wait for processing to complete
+        while video_file.state.name == "PROCESSING":
+            await asyncio.sleep(2)
+            video_file = genai.get_file(video_file.name)
+        
+        if video_file.state.name == "FAILED":
+            raise Exception(f"Video processing failed: {video_file.state}")
+        
+        print("🧠 Analyzing video content with Gemini 1.5 Flash...")
+        
+        # Generate recipe from video
+        response = model.generate_content([video_file, prompt])
+        
+        print("📝 Processing Gemini response...")
+        
+        # Extract JSON from response
+        response_text = response.text.strip()
+        
+        # Try to find JSON in the response
+        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        if json_match:
+            json_text = json_match.group()
+        else:
+            json_text = response_text
+        
+        # Parse the JSON response
+        recipe_data = json.loads(json_text)
+        
+        # Validate required fields
+        required_fields = ['title', 'ingredients', 'steps']
+        for field in required_fields:
+            if field not in recipe_data:
+                raise ValueError(f"Missing required field: {field}")
+        
+        print(f"✅ Successfully extracted recipe: {recipe_data.get('title', 'Unknown')}")
+        print(f"📊 Ingredients: {len(recipe_data.get('ingredients', []))}")
+        print(f"📝 Steps: {len(recipe_data.get('steps', []))}")
+        
+        return recipe_data
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Failed to parse JSON response: {e}")
+        print(f"📄 Raw response: {response.text[:500]}...")
+        raise Exception("Failed to parse recipe data from video analysis")
+        
+    except Exception as e:
+        print(f"❌ Error in video analysis: {str(e)}")
+        raise Exception(f"Video analysis failed: {str(e)}")
+    
+    finally:
+        # Clean up uploaded file
+        try:
+            if 'video_file' in locals():
+                genai.delete_file(video_file.name)
+                print("🗑️  Cleaned up uploaded video file")
+        except:
+            pass

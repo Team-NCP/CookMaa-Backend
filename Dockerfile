@@ -2,12 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
+# Copy minimal requirements and install
+COPY requirements.minimal.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy minimal app
+COPY app.py .
 
-# Run directly with python - let Railway handle PORT
-CMD python simple_voice_assistant.py
+# Use Hypercorn with IPv6 binding for Railway
+CMD ["sh", "-c", "hypercorn app:app --bind [::]:${PORT:-8000}"]

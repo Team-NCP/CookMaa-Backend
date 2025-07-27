@@ -1,0 +1,20 @@
+# Simplified Voice Assistant Requirements (No Pipecat)
+
+# FastAPI for API endpoints
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# HTTP requests
+requests>=2.31.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Audio processing (optional)
+numpy>=1.24.0
+
+# Async support
+aiofiles>=23.2.1

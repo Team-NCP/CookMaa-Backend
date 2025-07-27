@@ -1,5 +1,5 @@
 # Pipecat Voice AI Framework (Budget Setup)
-pipecat-ai[daily,groq,openai,google]>=0.0.100
+pipecat-ai[daily,groq,openai,google]>=0.0.76
 
 # FastAPI for API endpoints
 fastapi>=0.104.0

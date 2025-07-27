@@ -4,10 +4,10 @@ WORKDIR /app
 
 # Copy project files
 COPY requirements.minimal.txt requirements.txt
-COPY app.py .
+COPY cooking_voice_assistant.py .
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Use Railway's recommended command
-CMD ["hypercorn", "app:app", "--bind", "::"]
+# Use uvicorn with explicit IPv6 binding
+CMD ["sh", "-c", "uvicorn cooking_voice_assistant:app --host :: --port ${PORT:-8000}"]

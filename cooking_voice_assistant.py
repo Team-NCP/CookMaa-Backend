@@ -9,18 +9,24 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
-# Pipecat imports
-from pipecat.pipeline.pipeline import Pipeline
-from pipecat.pipeline.runner import PipelineRunner
-from pipecat.pipeline.task import PipelineTask
-from pipecat.services.daily import DailyParams, DailyTransport
-from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.processors.frame_processor import FrameDirection
-from pipecat.frames.frames import TextFrame, EndFrame
-from pipecat.vad.silero import SileroVADAnalyzer
-
 # Service imports  
 from groq import Groq
+
+# Try to import Pipecat, but continue if it fails
+try:
+    from pipecat.pipeline.pipeline import Pipeline
+    from pipecat.pipeline.runner import PipelineRunner
+    from pipecat.pipeline.task import PipelineTask
+    from pipecat.services.daily import DailyParams, DailyTransport
+    from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+    from pipecat.processors.frame_processor import FrameDirection
+    from pipecat.frames.frames import TextFrame, EndFrame
+    from pipecat.vad.silero import SileroVADAnalyzer
+    PIPECAT_AVAILABLE = True
+    logger.info("✅ Pipecat imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️  Pipecat not available: {e}")
+    PIPECAT_AVAILABLE = False
 
 # Load environment variables
 load_dotenv()
@@ -233,11 +239,18 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
 # API Endpoints
 @app.get("/")
 def read_root():
+    features = ["gemini"]
+    if PIPECAT_AVAILABLE:
+        features.extend(["pipecat", "daily.co"])
+    if GROQ_API_KEY:
+        features.append("groq")
+    
     return {
         "service": "CookMaa Voice Assistant",
         "status": "running", 
         "version": "2.0.0",
-        "features": ["pipecat", "daily.co", "groq"],
+        "features": features,
+        "pipecat_available": PIPECAT_AVAILABLE,
         "port": os.getenv("PORT", "8000")
     }
 
@@ -248,6 +261,12 @@ def health_check():
 @app.post("/start-voice-session")
 async def start_voice_session(request: VoiceSessionRequest):
     """Start a new voice session with Daily.co + Pipecat"""
+    
+    if not PIPECAT_AVAILABLE:
+        raise HTTPException(
+            status_code=503, 
+            detail="Pipecat voice pipeline not available. Service running in limited mode."
+        )
     
     if not DAILY_API_KEY or not GEMINI_API_KEY:
         raise HTTPException(

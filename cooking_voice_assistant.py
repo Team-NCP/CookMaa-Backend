@@ -89,6 +89,13 @@ app.add_middleware(
 )
 print("✅ FASTAPI: CORS middleware added successfully")
 
+# Add startup event for Railway healthcheck
+@app.on_event("startup")
+async def startup_event():
+    print("🎬 FASTAPI-EVENT: Startup event triggered")
+    logger.info("FastAPI application startup completed")
+    print("✅ FASTAPI-EVENT: Application is ready to serve requests")
+
 # Configure APIs
 print("🔑 API-CONFIG: Reading API keys from environment...")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -331,7 +338,35 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    """Enhanced health check for Railway"""
+    try:
+        # Basic health indicators
+        health_status = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "service": "CookMaa Voice Assistant",
+            "version": "2.0.0",
+            "python_version": sys.version.split()[0],
+            "working_directory": os.getcwd(),
+            "port": os.getenv("PORT", "8000"),
+            "features": {
+                "gemini_available": bool(GEMINI_API_KEY),
+                "groq_available": GROQ_AVAILABLE and bool(GROQ_API_KEY),
+                "pipecat_available": PIPECAT_AVAILABLE,
+                "daily_available": bool(DAILY_API_KEY)
+            }
+        }
+        
+        print(f"🏥 HEALTH: Health check requested at {health_status['timestamp']}")
+        return health_status
+        
+    except Exception as e:
+        print(f"❌ HEALTH: Health check failed: {e}")
+        return {
+            "status": "unhealthy", 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.post("/start-voice-session")
 async def start_voice_session(request: VoiceSessionRequest):
@@ -557,9 +592,16 @@ if __name__ == "__main__":
     print(f"🚀 UVICORN: Starting CookMaa backend on port {port}")
     print(f"🚀 UVICORN: Host: 0.0.0.0, Port: {port}")
     print(f"🚀 UVICORN: Datetime: {datetime.now()}")
+    print(f"🚀 UVICORN: Health endpoint will be available at: http://0.0.0.0:{port}/health")
     
     try:
-        uvicorn.run(app, host="0.0.0.0", port=port)
+        uvicorn.run(
+            app, 
+            host="0.0.0.0", 
+            port=port,
+            log_level="info",
+            access_log=True
+        )
     except Exception as e:
         print(f"❌ UVICORN: Failed to start server: {e}")
         logger.error(f"Failed to start server: {e}")

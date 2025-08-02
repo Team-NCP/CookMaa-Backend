@@ -68,13 +68,14 @@ RUN echo "📋 Creating startup debug script..." && \
     echo 'echo "🚀 CONTAINER STARTUP: $(date)"' >> /app/debug_startup.sh && \
     echo 'echo "🐍 Python version: $(python --version)"' >> /app/debug_startup.sh && \
     echo 'echo "📦 Installed packages:"' >> /app/debug_startup.sh && \
-    echo 'pip list' >> /app/debug_startup.sh && \
+    echo 'pip list | head -20' >> /app/debug_startup.sh && \
     echo 'echo "🔍 Environment variables:"' >> /app/debug_startup.sh && \
     echo 'env | grep -E "(PORT|GEMINI|GROQ|DAILY)" || echo "No relevant env vars found"' >> /app/debug_startup.sh && \
     echo 'echo "📁 Application files:"' >> /app/debug_startup.sh && \
     echo 'ls -la /app/' >> /app/debug_startup.sh && \
-    echo 'echo "🎬 Starting application..."' >> /app/debug_startup.sh && \
-    echo 'uvicorn cooking_voice_assistant:app --host 0.0.0.0 --port ${PORT:-8000}' >> /app/debug_startup.sh && \
+    echo 'echo "🎬 Starting application on port ${PORT:-8000}..."' >> /app/debug_startup.sh && \
+    echo 'echo "🏥 Health check will be available at: http://0.0.0.0:${PORT:-8000}/health"' >> /app/debug_startup.sh && \
+    echo 'python cooking_voice_assistant.py' >> /app/debug_startup.sh && \
     chmod +x /app/debug_startup.sh
 
 # Use debug startup script

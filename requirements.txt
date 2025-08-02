@@ -1,4 +1,4 @@
-# CookMaa Backend Requirements - Simplified for Railway Deployment
+# CookMaa Backend Requirements - Fixed for Railway Deployment
 
 # Core FastAPI dependencies
 fastapi>=0.104.0
@@ -17,6 +17,5 @@ groq>=0.4.0
 # Audio processing
 numpy>=1.24.0,<2.0.0
 
-# Try latest Pipecat version with Daily support
-pipecat-ai>=0.0.100
-daily-python>=0.10.1
+# Pipecat with correct dependencies for your stack
+pipecat-ai[daily,groq,google]>=0.0.77

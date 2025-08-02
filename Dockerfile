@@ -32,13 +32,15 @@ COPY requirements.txt .
 COPY cooking_voice_assistant.py .
 RUN echo "📁 Application files copied successfully"
 
-# Install dependencies from requirements.txt
+# Install dependencies from requirements.txt with better error handling
 RUN echo "📚 Installing dependencies from requirements.txt..." && \
     pip install --no-cache-dir -r requirements.txt \
     && echo "✅ All requirements.txt dependencies installed successfully" \
-    || (echo "❌ Requirements install failed, trying fallback..." && \
-        pip install --no-cache-dir fastapi uvicorn requests python-dotenv pydantic google-generativeai && \
-        echo "✅ Fallback core dependencies installed")
+    || (echo "❌ Requirements install failed, trying step-by-step install..." && \
+        pip install --no-cache-dir fastapi uvicorn requests python-dotenv pydantic google-generativeai aiofiles numpy && \
+        pip install --no-cache-dir groq && \
+        pip install --no-cache-dir "pipecat-ai[daily,groq,google]>=0.0.77" && \
+        echo "✅ Step-by-step installation completed")
 
 RUN echo "🎯 DOCKER BUILD COMPLETE: All installations attempted" && date
 

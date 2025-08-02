@@ -9,8 +9,13 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
-# Service imports  
-from groq import Groq
+# Try to import optional service dependencies
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
+    Groq = None
 
 # Try to import Pipecat, but continue if it fails
 try:
@@ -23,9 +28,7 @@ try:
     from pipecat.frames.frames import TextFrame, EndFrame
     from pipecat.vad.silero import SileroVADAnalyzer
     PIPECAT_AVAILABLE = True
-    logger.info("✅ Pipecat imported successfully")
 except ImportError as e:
-    logger.warning(f"⚠️  Pipecat not available: {e}")
     PIPECAT_AVAILABLE = False
 
 # Load environment variables
@@ -34,6 +37,17 @@ load_dotenv()
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Log import status
+if PIPECAT_AVAILABLE:
+    logger.info("✅ Pipecat imported successfully")
+else:
+    logger.warning("⚠️  Pipecat not available")
+
+if GROQ_AVAILABLE:
+    logger.info("✅ Groq imported successfully")
+else:
+    logger.warning("⚠️  Groq not available")
 
 app = FastAPI(title="CookMaa Voice Assistant", version="2.0.0")
 
@@ -53,6 +67,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GROQ_API_KEY:
     logger.warning("⚠️  GROQ_API_KEY not found - STT/TTS will be limited")
+    groq_client = None
+elif not GROQ_AVAILABLE:
+    logger.warning("⚠️  Groq library not available - STT/TTS will be limited")
+    groq_client = None
 else:
     groq_client = Groq(api_key=GROQ_API_KEY)
     logger.info("✅ Groq API configured successfully (STT/TTS)")
@@ -239,10 +257,12 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
 # API Endpoints
 @app.get("/")
 def read_root():
-    features = ["gemini"]
+    features = []
+    if GEMINI_API_KEY:
+        features.append("gemini")
     if PIPECAT_AVAILABLE:
         features.extend(["pipecat", "daily.co"])
-    if GROQ_API_KEY:
+    if GROQ_AVAILABLE and GROQ_API_KEY:
         features.append("groq")
     
     return {
@@ -251,6 +271,7 @@ def read_root():
         "version": "2.0.0",
         "features": features,
         "pipecat_available": PIPECAT_AVAILABLE,
+        "groq_available": GROQ_AVAILABLE,
         "port": os.getenv("PORT", "8000")
     }
 
@@ -402,8 +423,10 @@ def debug_environment():
     """Debug endpoint to check environment configuration"""
     return {
         "groq_api_key_configured": bool(GROQ_API_KEY),
+        "groq_library_available": GROQ_AVAILABLE,
         "gemini_api_key_configured": bool(GEMINI_API_KEY),
         "daily_api_key_configured": bool(DAILY_API_KEY),
+        "pipecat_library_available": PIPECAT_AVAILABLE,
         "port": os.getenv("PORT", "not_set"),
         "environment_vars_count": len([k for k in os.environ.keys() if not k.startswith("_")])
     }
@@ -411,6 +434,9 @@ def debug_environment():
 @app.get("/debug/groq")
 async def test_groq():
     """Test Groq API connectivity (STT/TTS only)"""
+    if not GROQ_AVAILABLE:
+        return {"error": "Groq library not available"}
+    
     if not GROQ_API_KEY:
         return {"error": "No Groq API key configured"}
     
@@ -419,7 +445,8 @@ async def test_groq():
         return {
             "status": "configured",
             "note": "Groq configured for STT/TTS only",
-            "api_key_length": len(GROQ_API_KEY)
+            "api_key_length": len(GROQ_API_KEY),
+            "library_available": GROQ_AVAILABLE
         }
         
     except Exception as e:

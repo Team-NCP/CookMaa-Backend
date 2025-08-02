@@ -39,7 +39,7 @@ RUN echo "📚 Installing dependencies from requirements.txt..." && \
     || (echo "❌ Requirements install failed, trying step-by-step install..." && \
         pip install --no-cache-dir fastapi uvicorn requests python-dotenv pydantic google-generativeai aiofiles numpy && \
         pip install --no-cache-dir groq && \
-        pip install --no-cache-dir "pipecat-ai[daily,groq,google]>=0.0.77" && \
+        pip install --no-cache-dir "pipecat-ai[daily,groq,google,silero]>=0.0.77" && \
         echo "✅ Step-by-step installation completed")
 
 RUN echo "🎯 DOCKER BUILD COMPLETE: All installations attempted" && date

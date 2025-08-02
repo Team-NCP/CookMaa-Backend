@@ -40,10 +40,10 @@ try:
     from pipecat.pipeline.runner import PipelineRunner
     from pipecat.pipeline.task import PipelineTask
     from pipecat.transports.services.daily import DailyParams, DailyTransport
-    from pipecat.processors.aggregators.llm_context import LLMContext
+    from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
     from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
     from pipecat.frames.frames import TextFrame, EndFrame
-    from pipecat.vad.silero import SileroVADAnalyzer
+    from pipecat.audio.vad.silero import SileroVADAnalyzer
     
     PIPECAT_IMPORTS = {
         'Pipeline': Pipeline,
@@ -51,7 +51,7 @@ try:
         'PipelineTask': PipelineTask,
         'DailyParams': DailyParams,
         'DailyTransport': DailyTransport,
-        'LLMContext': LLMContext,
+        'LLMContext': OpenAILLMContext,
         'FrameProcessor': FrameProcessor,
         'TextFrame': TextFrame,
         'EndFrame': EndFrame,
@@ -71,7 +71,7 @@ except ImportError as e:
         from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
         from pipecat.processors.frame_processor import FrameDirection
         from pipecat.frames.frames import TextFrame, EndFrame
-        from pipecat.vad.silero import SileroVADAnalyzer
+        from pipecat.audio.vad.silero import SileroVADAnalyzer
         
         PIPECAT_IMPORTS = {
             'Pipeline': Pipeline,

@@ -1,4 +1,4 @@
-# CookMaa Backend Requirements - Professional Voice Pipeline
+# CookMaa Backend Requirements - Pipecat Voice Pipeline
 
 # FastAPI for API endpoints
 fastapi>=0.104.0
@@ -13,25 +13,20 @@ python-dotenv>=1.0.0
 # Data validation
 pydantic>=2.5.0
 
-# Pipecat for voice AI orchestration
-pipecat-ai>=0.0.100
+# Pipecat for voice AI orchestration (try specific version)
+pipecat-ai==0.0.200
 
 # Daily.co for real-time audio infrastructure
 daily-python>=0.10.0
 
-# Groq for ultra-fast STT/TTS only
+# Groq for ultra-fast STT/TTS
 groq>=0.4.0
 
 # Google Generative AI for LLM (Gemini 1.5 Flash)
 google-generativeai>=0.3.0
 
-# Audio processing
-numpy>=1.24.0
-librosa>=0.10.0
+# Audio processing with specific versions for compatibility
+numpy>=1.24.0,<2.0.0
 
 # Async support
 aiofiles>=23.2.1
-
-# Audio format handling
-pydub>=0.25.1
-ffmpeg-python>=0.2.0

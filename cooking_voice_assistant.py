@@ -35,11 +35,11 @@ PIPECAT_AVAILABLE = False
 PIPECAT_IMPORTS = {}
 
 try:
-    print("📦 IMPORTS: Attempting Pipecat v0.0.100+ imports (method 1)...")
+    print("📦 IMPORTS: Attempting Pipecat v0.0.77+ imports (method 1)...")
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.pipeline.runner import PipelineRunner
     from pipecat.pipeline.task import PipelineTask
-    from pipecat.transports.daily import DailyParams, DailyTransport
+    from pipecat.transports.services.daily import DailyParams, DailyTransport
     from pipecat.processors.aggregators.llm_context import LLMContext
     from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
     from pipecat.frames.frames import TextFrame, EndFrame
@@ -58,16 +58,16 @@ try:
         'SileroVADAnalyzer': SileroVADAnalyzer
     }
     PIPECAT_AVAILABLE = True
-    print("✅ IMPORTS: Pipecat v0.0.100+ imported successfully (method 1)")
+    print("✅ IMPORTS: Pipecat v0.0.77+ imported successfully (method 1)")
 except ImportError as e:
-    print(f"⚠️  IMPORTS: Pipecat v0.0.100+ method failed: {e}")
+    print(f"⚠️  IMPORTS: Pipecat v0.0.77+ method failed: {e}")
     
     try:
-        print("📦 IMPORTS: Attempting Pipecat v0.0.45 imports (method 2)...")
+        print("📦 IMPORTS: Attempting Pipecat v0.0.45 fallback imports (method 2)...")
         from pipecat.pipeline.pipeline import Pipeline
         from pipecat.pipeline.runner import PipelineRunner
         from pipecat.pipeline.task import PipelineTask
-        from pipecat.services.daily import DailyParams, DailyTransport
+        from pipecat.transports.services.daily import DailyParams, DailyTransport
         from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
         from pipecat.processors.frame_processor import FrameDirection
         from pipecat.frames.frames import TextFrame, EndFrame

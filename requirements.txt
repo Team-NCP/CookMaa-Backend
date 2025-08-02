@@ -13,8 +13,8 @@ python-dotenv>=1.0.0
 # Data validation
 pydantic>=2.5.0
 
-# Try installing Pipecat with compatible versions
-pipecat-ai>=0.0.100
+# Pipecat AI with specific version and all integrations
+pipecat-ai[daily]>=0.0.100
 
 # Daily.co for real-time audio infrastructure
 daily-python>=0.10.0
@@ -27,8 +27,6 @@ google-generativeai>=0.3.0
 
 # Audio processing dependencies for Pipecat
 numpy>=1.24.0,<2.0.0
-librosa>=0.10.0
-soundfile>=0.12.0
 
 # Async support
 aiofiles>=23.2.1

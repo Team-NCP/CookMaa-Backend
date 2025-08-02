@@ -56,8 +56,8 @@ RUN echo "🔢 Installing OPTIONAL dependency: numpy..." && \
     (pip install --no-cache-dir numpy && echo "✅ Numpy installed successfully") \
     || echo "⚠️  Numpy install failed, continuing..."
 
-RUN echo "🎤 Installing OPTIONAL dependency: pipecat-ai..." && \
-    (pip install --no-cache-dir pipecat-ai && echo "✅ Pipecat-ai installed successfully") \
+RUN echo "🎤 Installing OPTIONAL dependency: pipecat-ai with Daily.co integration..." && \
+    (pip install --no-cache-dir "pipecat-ai[daily]" && echo "✅ Pipecat-ai with Daily.co installed successfully") \
     || echo "⚠️  Pipecat-ai install failed, continuing..."
 
 RUN echo "🎯 DOCKER BUILD COMPLETE: All installations attempted" && date

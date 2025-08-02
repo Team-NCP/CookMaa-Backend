@@ -10,6 +10,7 @@ RUN echo "📦 Installing basic build tools..." && \
     apt-get update && apt-get install -y \
     gcc \
     g++ \
+    git \
     && echo "✅ Basic build tools installed successfully" \
     && rm -rf /var/lib/apt/lists/* \
     || (echo "❌ Basic build tools installation failed" && exit 1)
@@ -56,9 +57,20 @@ RUN echo "🔢 Installing OPTIONAL dependency: numpy..." && \
     (pip install --no-cache-dir numpy && echo "✅ Numpy installed successfully") \
     || echo "⚠️  Numpy install failed, continuing..."
 
-RUN echo "🎤 Installing OPTIONAL dependency: pipecat-ai with Daily.co integration..." && \
-    (pip install --no-cache-dir "pipecat-ai[daily]" && echo "✅ Pipecat-ai with Daily.co installed successfully") \
-    || echo "⚠️  Pipecat-ai install failed, continuing..."
+RUN echo "🎤 Installing OPTIONAL dependency: pipecat-ai..." && \
+    (pip install --no-cache-dir pipecat-ai==0.0.45 && echo "✅ Pipecat-ai base installed successfully") \
+    || echo "⚠️  Pipecat-ai base install failed, continuing..."
+
+RUN echo "🎤 Installing Pipecat Daily.co integration separately..." && \
+    (pip install --no-cache-dir daily-python==0.10.1 && echo "✅ Daily-python installed successfully") \
+    || echo "⚠️  Daily-python install failed, continuing..."
+
+RUN echo "🎤 Trying to install pipecat daily extras..." && \
+    (pip install --no-cache-dir "pipecat-ai[daily]==0.0.45" && echo "✅ Pipecat Daily extras installed") \
+    || (echo "⚠️  Pipecat Daily extras failed, trying manual install..." && \
+        pip install --no-cache-dir git+https://github.com/pipecat-ai/pipecat.git@main && \
+        echo "✅ Pipecat installed from Git") \
+    || echo "⚠️  All Pipecat install methods failed, continuing..."
 
 RUN echo "🎯 DOCKER BUILD COMPLETE: All installations attempted" && date
 

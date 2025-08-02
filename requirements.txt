@@ -13,11 +13,11 @@ python-dotenv>=1.0.0
 # Data validation
 pydantic>=2.5.0
 
-# Pipecat AI with specific version and all integrations
-pipecat-ai[daily]>=0.0.100
+# Pipecat AI with stable version
+pipecat-ai==0.0.45
 
 # Daily.co for real-time audio infrastructure
-daily-python>=0.10.0
+daily-python==0.10.1
 
 # Groq for ultra-fast STT/TTS
 groq>=0.4.0

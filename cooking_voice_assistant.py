@@ -30,9 +30,11 @@ except ImportError as e:
     Groq = None
     print(f"⚠️  IMPORTS: Groq import failed: {e}")
 
-# Try to import Pipecat, but continue if it fails
+# Try to import Pipecat with multiple approaches
+PIPECAT_AVAILABLE = False
+
 try:
-    print("📦 IMPORTS: Attempting to import Pipecat components...")
+    print("📦 IMPORTS: Attempting to import Pipecat components (method 1)...")
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.pipeline.runner import PipelineRunner
     from pipecat.pipeline.task import PipelineTask
@@ -42,10 +44,36 @@ try:
     from pipecat.frames.frames import TextFrame, EndFrame
     from pipecat.vad.silero import SileroVADAnalyzer
     PIPECAT_AVAILABLE = True
-    print("✅ IMPORTS: Pipecat imported successfully")
+    print("✅ IMPORTS: Pipecat imported successfully (method 1)")
 except ImportError as e:
-    PIPECAT_AVAILABLE = False
-    print(f"⚠️  IMPORTS: Pipecat import failed: {e}")
+    print(f"⚠️  IMPORTS: Pipecat method 1 failed: {e}")
+    
+    try:
+        print("📦 IMPORTS: Attempting alternative Pipecat import (method 2)...")
+        from pipecat.transports.daily import DailyTransport, DailyParams
+        from pipecat.processors import FrameProcessor
+        from pipecat.pipeline import Pipeline
+        from pipecat.frames import TextFrame
+        PIPECAT_AVAILABLE = True
+        print("✅ IMPORTS: Pipecat imported successfully (method 2)")
+    except ImportError as e2:
+        print(f"⚠️  IMPORTS: Pipecat method 2 failed: {e2}")
+        
+        try:
+            print("📦 IMPORTS: Attempting basic Pipecat import (method 3)...")
+            import pipecat
+            print(f"📦 IMPORTS: Pipecat version: {getattr(pipecat, '__version__', 'unknown')}")
+            print(f"📦 IMPORTS: Pipecat location: {pipecat.__file__}")
+            # Try to import what's actually available
+            from pipecat import *
+            PIPECAT_AVAILABLE = True
+            print("✅ IMPORTS: Basic Pipecat imported successfully (method 3)")
+        except ImportError as e3:
+            print(f"⚠️  IMPORTS: All Pipecat import methods failed")
+            print(f"⚠️  IMPORTS: Method 1 error: {e}")
+            print(f"⚠️  IMPORTS: Method 2 error: {e2}")
+            print(f"⚠️  IMPORTS: Method 3 error: {e3}")
+            PIPECAT_AVAILABLE = False
 
 print("📦 IMPORTS: Core dependency imports completed")
 

@@ -1,24 +1,38 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import asyncio
 import logging
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
-# Try to import optional service dependencies
+# Enable comprehensive debug logging from the start
+print(f"🐍 PYTHON STARTUP: {datetime.now()}")
+print(f"🐍 Python version: {sys.version}")
+print(f"🐍 Working directory: {os.getcwd()}")
+print(f"🐍 Python path: {sys.path[:3]}...")  # First 3 entries
+
+# Try to import optional service dependencies with detailed logging
+print("📦 IMPORTS: Starting dependency imports...")
+
 try:
+    print("📦 IMPORTS: Attempting to import Groq...")
     from groq import Groq
     GROQ_AVAILABLE = True
-except ImportError:
+    print("✅ IMPORTS: Groq imported successfully")
+except ImportError as e:
     GROQ_AVAILABLE = False
     Groq = None
+    print(f"⚠️  IMPORTS: Groq import failed: {e}")
 
 # Try to import Pipecat, but continue if it fails
 try:
+    print("📦 IMPORTS: Attempting to import Pipecat components...")
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.pipeline.runner import PipelineRunner
     from pipecat.pipeline.task import PipelineTask
@@ -28,29 +42,43 @@ try:
     from pipecat.frames.frames import TextFrame, EndFrame
     from pipecat.vad.silero import SileroVADAnalyzer
     PIPECAT_AVAILABLE = True
+    print("✅ IMPORTS: Pipecat imported successfully")
 except ImportError as e:
     PIPECAT_AVAILABLE = False
+    print(f"⚠️  IMPORTS: Pipecat import failed: {e}")
+
+print("📦 IMPORTS: Core dependency imports completed")
 
 # Load environment variables
+print("🔧 CONFIG: Loading environment variables...")
 load_dotenv()
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Log import status
+print("🔧 CONFIG: Environment and logging setup completed")
+
+# Log import status with detailed info
+print("📊 STATUS: Checking import availability...")
 if PIPECAT_AVAILABLE:
     logger.info("✅ Pipecat imported successfully")
+    print("✅ STATUS: Pipecat - AVAILABLE")
 else:
     logger.warning("⚠️  Pipecat not available")
+    print("⚠️  STATUS: Pipecat - NOT AVAILABLE")
 
 if GROQ_AVAILABLE:
     logger.info("✅ Groq imported successfully")
+    print("✅ STATUS: Groq - AVAILABLE")
 else:
     logger.warning("⚠️  Groq not available")
+    print("⚠️  STATUS: Groq - NOT AVAILABLE")
 
+print("🚀 FASTAPI: Creating FastAPI application...")
 app = FastAPI(title="CookMaa Voice Assistant", version="2.0.0")
 
+print("🌐 FASTAPI: Adding CORS middleware...")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -59,33 +87,59 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+print("✅ FASTAPI: CORS middleware added successfully")
 
 # Configure APIs
+print("🔑 API-CONFIG: Reading API keys from environment...")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 DAILY_API_KEY = os.getenv("DAILY_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+print(f"🔑 API-CONFIG: GROQ_API_KEY = {'SET' if GROQ_API_KEY else 'NOT SET'}")
+print(f"🔑 API-CONFIG: DAILY_API_KEY = {'SET' if DAILY_API_KEY else 'NOT SET'}")
+print(f"🔑 API-CONFIG: GEMINI_API_KEY = {'SET' if GEMINI_API_KEY else 'NOT SET'}")
+
+print("🔧 API-CONFIG: Configuring API clients...")
+
 if not GROQ_API_KEY:
     logger.warning("⚠️  GROQ_API_KEY not found - STT/TTS will be limited")
+    print("⚠️  API-CONFIG: Groq - NO API KEY")
     groq_client = None
 elif not GROQ_AVAILABLE:
     logger.warning("⚠️  Groq library not available - STT/TTS will be limited")
+    print("⚠️  API-CONFIG: Groq - LIBRARY NOT AVAILABLE")
     groq_client = None
 else:
-    groq_client = Groq(api_key=GROQ_API_KEY)
-    logger.info("✅ Groq API configured successfully (STT/TTS)")
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        logger.info("✅ Groq API configured successfully (STT/TTS)")
+        print("✅ API-CONFIG: Groq - CONFIGURED SUCCESSFULLY")
+    except Exception as e:
+        logger.error(f"❌ Groq API configuration failed: {e}")
+        print(f"❌ API-CONFIG: Groq - CONFIGURATION FAILED: {e}")
+        groq_client = None
 
 if not GEMINI_API_KEY:
     logger.warning("⚠️  GEMINI_API_KEY not found - LLM conversation will not work")
+    print("⚠️  API-CONFIG: Gemini - NO API KEY")
 else:
-    import google.generativeai as genai
-    genai.configure(api_key=GEMINI_API_KEY)
-    logger.info("✅ Gemini API configured successfully (LLM)")
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=GEMINI_API_KEY)
+        logger.info("✅ Gemini API configured successfully (LLM)")
+        print("✅ API-CONFIG: Gemini - CONFIGURED SUCCESSFULLY")
+    except Exception as e:
+        logger.error(f"❌ Gemini API configuration failed: {e}")
+        print(f"❌ API-CONFIG: Gemini - CONFIGURATION FAILED: {e}")
 
 if not DAILY_API_KEY:
     logger.warning("⚠️  DAILY_API_KEY not found - voice sessions will not work")
+    print("⚠️  API-CONFIG: Daily.co - NO API KEY")
 else:
     logger.info("✅ Daily.co API configured successfully")
+    print("✅ API-CONFIG: Daily.co - CONFIGURED SUCCESSFULLY")
+
+print("🎯 API-CONFIG: All API configuration attempts completed")
 
 # Data models
 class VoiceSessionRequest(BaseModel):
@@ -492,8 +546,21 @@ async def test_gemini():
 # - STT/TTS: Groq (ultra-fast, cost-effective)
 # - Total monthly cost: ~$5 Railway + ~$3 Groq = $8/month
 
+# Startup completion logging
+print("🎉 STARTUP: All initialization completed successfully!")
+print("🎉 STARTUP: Application ready to handle requests")
+print(f"🎉 STARTUP: Available features: {['gemini' if GEMINI_API_KEY else None, 'pipecat' if PIPECAT_AVAILABLE else None, 'groq' if GROQ_AVAILABLE and GROQ_API_KEY else None]}")
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    print(f"🚀 Starting CookMaa backend on port {port}")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    print(f"🚀 UVICORN: Starting CookMaa backend on port {port}")
+    print(f"🚀 UVICORN: Host: 0.0.0.0, Port: {port}")
+    print(f"🚀 UVICORN: Datetime: {datetime.now()}")
+    
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    except Exception as e:
+        print(f"❌ UVICORN: Failed to start server: {e}")
+        logger.error(f"Failed to start server: {e}")
+        raise

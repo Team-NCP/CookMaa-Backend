@@ -1,32 +1,22 @@
-# CookMaa Backend Requirements - Pipecat + Daily.co Voice Pipeline
+# CookMaa Backend Requirements - Simplified for Railway Deployment
 
-# FastAPI for API endpoints
+# Core FastAPI dependencies
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
-
-# HTTP requests
 requests>=2.31.0
-
-# Environment management
 python-dotenv>=1.0.0
-
-# Data validation
 pydantic>=2.5.0
-
-# Pipecat AI with stable version
-pipecat-ai==0.0.45
-
-# Daily.co for real-time audio infrastructure
-daily-python==0.10.1
-
-# Groq for ultra-fast STT/TTS
-groq>=0.4.0
+aiofiles>=23.2.1
 
 # Google Generative AI for LLM (Gemini 1.5 Flash)
 google-generativeai>=0.3.0
 
-# Audio processing dependencies for Pipecat
+# Groq for ultra-fast STT/TTS
+groq>=0.4.0
+
+# Audio processing
 numpy>=1.24.0,<2.0.0
 
-# Async support
-aiofiles>=23.2.1
+# Try latest Pipecat version with Daily support
+pipecat-ai>=0.0.100
+daily-python>=0.10.1

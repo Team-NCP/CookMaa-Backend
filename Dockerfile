@@ -5,15 +5,21 @@ WORKDIR /app
 # Add debug logging throughout the build process
 RUN echo "🐋 DOCKER BUILD START: Installing system dependencies..." && date
 
-# Install minimal system dependencies
-RUN echo "📦 Installing basic build tools..." && \
+# Install system dependencies needed for audio and compilation
+RUN echo "📦 Installing system dependencies..." && \
     apt-get update && apt-get install -y \
     gcc \
     g++ \
     git \
-    && echo "✅ Basic build tools installed successfully" \
+    curl \
+    libasound2-dev \
+    libportaudio2 \
+    portaudio19-dev \
+    libsndfile1 \
+    pkg-config \
+    && echo "✅ System dependencies installed successfully" \
     && rm -rf /var/lib/apt/lists/* \
-    || (echo "❌ Basic build tools installation failed" && exit 1)
+    || (echo "❌ System dependencies installation failed" && exit 1)
 
 # Upgrade pip and install basic dependencies first
 RUN echo "🐍 Upgrading pip and build tools..." && \
@@ -26,51 +32,13 @@ COPY requirements.txt .
 COPY cooking_voice_assistant.py .
 RUN echo "📁 Application files copied successfully"
 
-# Install core dependencies that are guaranteed to work
-RUN echo "📚 Installing CORE dependencies (must succeed)..." && \
-    pip install --no-cache-dir fastapi uvicorn[standard] requests python-dotenv pydantic google-generativeai aiofiles \
-    && echo "✅ CORE dependencies installed successfully" \
-    || (echo "❌ CORE dependencies failed - this is critical!" && exit 1)
-
-# Try to install optional dependencies (allow failures)
-RUN echo "🔧 Installing OPTIONAL dependency: groq..." && \
-    (pip install --no-cache-dir groq && echo "✅ Groq installed successfully") \
-    || echo "⚠️  Groq install failed, continuing..."
-
-RUN echo "📞 Installing OPTIONAL dependency: daily-python..." && \
-    (pip install --no-cache-dir daily-python && echo "✅ Daily-python installed successfully") \
-    || echo "⚠️  Daily-python install failed, continuing..."
-
-# Install audio dependencies for Pipecat (allow failures)
-RUN echo "🎵 Installing OPTIONAL audio dependencies..." && \
-    (apt-get update && apt-get install -y \
-        libasound2-dev \
-        libportaudio2 \
-        portaudio19-dev \
-        libsndfile1 \
-        pkg-config \
-    && echo "✅ Audio dependencies installed successfully" \
-    && rm -rf /var/lib/apt/lists/*) \
-    || echo "⚠️  Audio dependencies install failed, continuing..."
-
-RUN echo "🔢 Installing OPTIONAL dependency: numpy..." && \
-    (pip install --no-cache-dir numpy && echo "✅ Numpy installed successfully") \
-    || echo "⚠️  Numpy install failed, continuing..."
-
-RUN echo "🎤 Installing OPTIONAL dependency: pipecat-ai..." && \
-    (pip install --no-cache-dir pipecat-ai==0.0.45 && echo "✅ Pipecat-ai base installed successfully") \
-    || echo "⚠️  Pipecat-ai base install failed, continuing..."
-
-RUN echo "🎤 Installing Pipecat Daily.co integration separately..." && \
-    (pip install --no-cache-dir daily-python==0.10.1 && echo "✅ Daily-python installed successfully") \
-    || echo "⚠️  Daily-python install failed, continuing..."
-
-RUN echo "🎤 Trying to install pipecat daily extras..." && \
-    (pip install --no-cache-dir "pipecat-ai[daily]==0.0.45" && echo "✅ Pipecat Daily extras installed") \
-    || (echo "⚠️  Pipecat Daily extras failed, trying manual install..." && \
-        pip install --no-cache-dir git+https://github.com/pipecat-ai/pipecat.git@main && \
-        echo "✅ Pipecat installed from Git") \
-    || echo "⚠️  All Pipecat install methods failed, continuing..."
+# Install dependencies from requirements.txt
+RUN echo "📚 Installing dependencies from requirements.txt..." && \
+    pip install --no-cache-dir -r requirements.txt \
+    && echo "✅ All requirements.txt dependencies installed successfully" \
+    || (echo "❌ Requirements install failed, trying fallback..." && \
+        pip install --no-cache-dir fastapi uvicorn requests python-dotenv pydantic google-generativeai && \
+        echo "✅ Fallback core dependencies installed")
 
 RUN echo "🎯 DOCKER BUILD COMPLETE: All installations attempted" && date
 

@@ -30,44 +30,74 @@ except ImportError as e:
     Groq = None
     print(f"⚠️  IMPORTS: Groq import failed: {e}")
 
-# Try to import Pipecat with multiple approaches
+# Try to import Pipecat with multiple approaches for different versions
 PIPECAT_AVAILABLE = False
+PIPECAT_IMPORTS = {}
 
 try:
-    print("📦 IMPORTS: Attempting to import Pipecat components (method 1)...")
+    print("📦 IMPORTS: Attempting Pipecat v0.0.100+ imports (method 1)...")
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.pipeline.runner import PipelineRunner
     from pipecat.pipeline.task import PipelineTask
-    from pipecat.services.daily import DailyParams, DailyTransport
-    from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-    from pipecat.processors.frame_processor import FrameDirection
+    from pipecat.transports.daily import DailyParams, DailyTransport
+    from pipecat.processors.aggregators.llm_context import LLMContext
+    from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
     from pipecat.frames.frames import TextFrame, EndFrame
     from pipecat.vad.silero import SileroVADAnalyzer
+    
+    PIPECAT_IMPORTS = {
+        'Pipeline': Pipeline,
+        'PipelineRunner': PipelineRunner, 
+        'PipelineTask': PipelineTask,
+        'DailyParams': DailyParams,
+        'DailyTransport': DailyTransport,
+        'LLMContext': LLMContext,
+        'FrameProcessor': FrameProcessor,
+        'TextFrame': TextFrame,
+        'EndFrame': EndFrame,
+        'SileroVADAnalyzer': SileroVADAnalyzer
+    }
     PIPECAT_AVAILABLE = True
-    print("✅ IMPORTS: Pipecat imported successfully (method 1)")
+    print("✅ IMPORTS: Pipecat v0.0.100+ imported successfully (method 1)")
 except ImportError as e:
-    print(f"⚠️  IMPORTS: Pipecat method 1 failed: {e}")
+    print(f"⚠️  IMPORTS: Pipecat v0.0.100+ method failed: {e}")
     
     try:
-        print("📦 IMPORTS: Attempting alternative Pipecat import (method 2)...")
-        from pipecat.transports.daily import DailyTransport, DailyParams
-        from pipecat.processors import FrameProcessor
-        from pipecat.pipeline import Pipeline
-        from pipecat.frames import TextFrame
+        print("📦 IMPORTS: Attempting Pipecat v0.0.45 imports (method 2)...")
+        from pipecat.pipeline.pipeline import Pipeline
+        from pipecat.pipeline.runner import PipelineRunner
+        from pipecat.pipeline.task import PipelineTask
+        from pipecat.services.daily import DailyParams, DailyTransport
+        from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+        from pipecat.processors.frame_processor import FrameDirection
+        from pipecat.frames.frames import TextFrame, EndFrame
+        from pipecat.vad.silero import SileroVADAnalyzer
+        
+        PIPECAT_IMPORTS = {
+            'Pipeline': Pipeline,
+            'PipelineRunner': PipelineRunner, 
+            'PipelineTask': PipelineTask,
+            'DailyParams': DailyParams,
+            'DailyTransport': DailyTransport,
+            'LLMContext': OpenAILLMContext,
+            'FrameProcessor': None,  # Different in v0.0.45
+            'TextFrame': TextFrame,
+            'EndFrame': EndFrame,
+            'SileroVADAnalyzer': SileroVADAnalyzer
+        }
         PIPECAT_AVAILABLE = True
-        print("✅ IMPORTS: Pipecat imported successfully (method 2)")
+        print("✅ IMPORTS: Pipecat v0.0.45 imported successfully (method 2)")
     except ImportError as e2:
-        print(f"⚠️  IMPORTS: Pipecat method 2 failed: {e2}")
+        print(f"⚠️  IMPORTS: Pipecat v0.0.45 method failed: {e2}")
         
         try:
-            print("📦 IMPORTS: Attempting basic Pipecat import (method 3)...")
+            print("📦 IMPORTS: Attempting basic Pipecat discovery (method 3)...")
             import pipecat
             print(f"📦 IMPORTS: Pipecat version: {getattr(pipecat, '__version__', 'unknown')}")
             print(f"📦 IMPORTS: Pipecat location: {pipecat.__file__}")
-            # Try to import what's actually available
-            from pipecat import *
-            PIPECAT_AVAILABLE = True
-            print("✅ IMPORTS: Basic Pipecat imported successfully (method 3)")
+            print(f"📦 IMPORTS: Available pipecat modules: {list(pipecat.__dict__.keys())[:10]}")
+            PIPECAT_AVAILABLE = False  # Don't enable without proper imports
+            print("⚠️  IMPORTS: Pipecat found but specific imports failed")
         except ImportError as e3:
             print(f"⚠️  IMPORTS: All Pipecat import methods failed")
             print(f"⚠️  IMPORTS: Method 1 error: {e}")
@@ -286,11 +316,23 @@ When users ask questions, relate answers to this current step when relevant."""
             logger.error(f"❌ Gemini LLM processing error: {str(e)}")
             return "I'm having trouble thinking right now. Could you repeat that?"
 
-async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dict[str, Any]) -> PipelineTask:
+async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dict[str, Any]):
     """Create Pipecat pipeline for voice interaction"""
+    
+    if not PIPECAT_AVAILABLE or not PIPECAT_IMPORTS:
+        raise Exception("Pipecat not available - voice pipeline cannot be created")
     
     # Create cooking assistant
     assistant = CookingVoiceAssistant(recipe_context)
+    
+    # Get the imported classes
+    Pipeline = PIPECAT_IMPORTS['Pipeline']
+    PipelineTask = PIPECAT_IMPORTS['PipelineTask']
+    DailyTransport = PIPECAT_IMPORTS['DailyTransport']
+    DailyParams = PIPECAT_IMPORTS['DailyParams']
+    TextFrame = PIPECAT_IMPORTS['TextFrame']
+    SileroVADAnalyzer = PIPECAT_IMPORTS['SileroVADAnalyzer']
+    LLMContext = PIPECAT_IMPORTS['LLMContext']
     
     # Daily.co transport configuration
     transport = DailyTransport(
@@ -308,7 +350,7 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     )
     
     # Create processors for the pipeline
-    llm_context = OpenAILLMContext()
+    llm_context = LLMContext()
     
     # Custom processor for cooking responses
     class CookingProcessor:
@@ -449,12 +491,13 @@ async def start_voice_session(request: VoiceSessionRequest):
         logger.error(f"❌ Failed to start voice session: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to start voice session: {str(e)}")
 
-async def run_pipeline(session_id: str, task: PipelineTask):
+async def run_pipeline(session_id: str, task):
     """Run Pipecat pipeline for a session"""
     try:
         logger.info(f"🚀 Running pipeline for session {session_id}")
         
         # Create pipeline runner
+        PipelineRunner = PIPECAT_IMPORTS['PipelineRunner']
         runner = PipelineRunner()
         
         # Run the task

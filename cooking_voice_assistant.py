@@ -46,7 +46,29 @@ try:
     from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
     from pipecat.frames.frames import TextFrame, EndFrame
     from pipecat.audio.vad.silero import SileroVADAnalyzer
-    from pipecat.services.groq import GroqSTTService, GroqTTSService
+    
+    # Try different TTS/STT import paths
+    try:
+        from pipecat.services.groq import GroqSTTService, GroqTTSService
+        GROQ_STT_AVAILABLE = True
+        GROQ_TTS_AVAILABLE = True
+        print("✅ IMPORTS: Groq STT/TTS services imported")
+    except ImportError as groq_e:
+        print(f"⚠️ IMPORTS: Groq services not available: {groq_e}")
+        # Try alternative imports for STT/TTS
+        try:
+            from pipecat.services.openai import OpenAISTTService, OpenAITTSService
+            GroqSTTService = OpenAISTTService  # Use OpenAI STT as fallback
+            GroqTTSService = OpenAITTSService  # Use OpenAI TTS as fallback
+            GROQ_STT_AVAILABLE = True
+            GROQ_TTS_AVAILABLE = True
+            print("✅ IMPORTS: Using OpenAI STT/TTS as fallback")
+        except ImportError:
+            GroqSTTService = None
+            GroqTTSService = None
+            GROQ_STT_AVAILABLE = False
+            GROQ_TTS_AVAILABLE = False
+            print("⚠️ IMPORTS: No STT/TTS services available")
     
     PIPECAT_IMPORTS = {
         'Pipeline': Pipeline,
@@ -60,7 +82,9 @@ try:
         'EndFrame': EndFrame,
         'SileroVADAnalyzer': SileroVADAnalyzer,
         'GroqSTTService': GroqSTTService,
-        'GroqTTSService': GroqTTSService
+        'GroqTTSService': GroqTTSService,
+        'GROQ_STT_AVAILABLE': GROQ_STT_AVAILABLE,
+        'GROQ_TTS_AVAILABLE': GROQ_TTS_AVAILABLE
     }
     PIPECAT_AVAILABLE = True
     print("✅ IMPORTS: Pipecat v0.0.77+ imported successfully (method 1)")
@@ -499,12 +523,13 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     # Create processors for the pipeline
     llm_context = LLMContext()
     
-    # Custom processor for cooking responses
+    # Custom processor for cooking responses - only processes TextFrames from STT
     class CookingProcessor(FrameProcessor):
         def __init__(self, assistant: CookingVoiceAssistant):
             super().__init__()
             self.assistant = assistant
             self.frame_count = 0
+            self._started = False
             print("🎛️ PROCESSOR: CookingProcessor initialized")
             logger.info("🎛️ CookingProcessor initialized")
             
@@ -512,24 +537,36 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
             self.frame_count += 1
             frame_type = type(frame).__name__
             
-            # Always pass through StartFrame and other system frames first
-            if frame_type in ['StartFrame', 'EndFrame', 'SpeechControlParamsFrame']:
+            # Handle StartFrame to mark processor as started
+            if frame_type == 'StartFrame':
+                print(f"🔄 PROCESSOR: StartFrame received - processor ready")
+                self._started = True
+                await self.push_frame(frame, direction)
+                return
+                
+            # Always pass through system frames
+            if frame_type in ['EndFrame', 'SpeechControlParamsFrame']:
                 print(f"🔄 PROCESSOR: System frame #{self.frame_count} - Type: {frame_type}")
                 await self.push_frame(frame, direction)
                 return
             
-            # Only log every 100th audio frame to reduce noise
-            if frame_type == 'UserAudioRawFrame':
-                if self.frame_count % 100 == 0:
-                    print(f"🔄 PROCESSOR: Audio frame #{self.frame_count} (logging every 100th)")
+            # Skip audio frames entirely - they should go directly to STT
+            if frame_type in ['UserAudioRawFrame', 'AudioFrame']:
+                # Don't process audio frames in the LLM processor
                 await self.push_frame(frame, direction)
                 return
             
-            print(f"🔄 PROCESSOR: Frame #{self.frame_count} - Type: {frame_type}, Direction: {direction}")
-            logger.debug(f"🔄 Processing frame #{self.frame_count}: {frame_type} ({direction})")
+            # Only process if started
+            if not self._started:
+                await self.push_frame(frame, direction)
+                return
+            
+            # Log text frames only
+            if frame_type == 'TextFrame':
+                print(f"🔄 PROCESSOR: Frame #{self.frame_count} - Type: {frame_type}, Direction: {direction}")
             
             if isinstance(frame, TextFrame):
-                # Process user speech
+                # Process user speech from STT
                 user_text = frame.text
                 print(f"🎤 PROCESSOR: User speech detected: '{user_text}'")
                 logger.info(f"🎤 User said: {user_text}")
@@ -550,6 +587,8 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
                     return
                 else:
                     print(f"⏭️ PROCESSOR: No wake word detected, ignoring: '{user_text}'")
+                    # Don't pass through - consume the frame to prevent echo
+                    return
             
             # Pass through other frames
             await self.push_frame(frame, direction)
@@ -565,6 +604,8 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print("   4. Groq TTS Service (Text → Audio)")
     print("   5. Daily.co Transport Output (Audio)")
     
+    # The issue is that CookingProcessor needs to be after STT but before TTS
+    # Let's use a simpler pipeline structure that handles StartFrame properly
     pipeline = Pipeline([
         transport.input(),        # Audio input from Daily.co
         stt_service,             # Groq STT: Audio → Text  
@@ -572,6 +613,14 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         tts_service,             # Groq TTS: Text → Audio
         transport.output()       # Audio output to Daily.co
     ])
+    
+    # Alternative: Try without custom processor first to test STT/TTS
+    # pipeline = Pipeline([
+    #     transport.input(),
+    #     stt_service,
+    #     tts_service,
+    #     transport.output()
+    # ])
     
     print("✅ PIPELINE: Pipeline created successfully with 5 components")
     logger.info("✅ Pipecat pipeline created: Daily.co → Groq STT → Gemini AI → Groq TTS → Daily.co")

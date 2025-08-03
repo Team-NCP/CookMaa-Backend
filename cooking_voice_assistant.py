@@ -565,13 +565,12 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
                 await self.push_frame(frame, direction)
                 return
             
-            # Skip audio frames entirely - they should go directly to STT
+            # Audio frames should NEVER reach the CookingProcessor
+            # This indicates a pipeline ordering issue
             if frame_type in ['UserAudioRawFrame', 'AudioFrame']:
-                # Check for pending announcements every 100 audio frames
-                if self.frame_count % 100 == 0:
-                    await self.check_pending_announcements()
-                
-                # Don't process audio frames in the LLM processor
+                print(f"❌ PROCESSOR: Audio frame reached CookingProcessor - this shouldn't happen!")
+                print(f"❌ PROCESSOR: Pipeline order is wrong - CookingProcessor should be after STT")
+                # Still pass through but log the error
                 await self.push_frame(frame, direction)
                 return
             
@@ -634,33 +633,33 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     
     # Create pipeline with proper STT → LLM → TTS flow
     print("🔧 PIPELINE: Creating Pipecat pipeline with Groq STT/TTS...")
+    print("🔧 PIPELINE: TESTING SIMPLE PIPELINE FIRST...")
     print("🔧 PIPELINE: Components:")
     print("   1. Daily.co Transport Input (Audio)")
     print("   2. Groq STT Service (Audio → Text)")
-    print("   3. CookingProcessor (LLM AI)")
-    print("   4. Groq TTS Service (Text → Audio)")
-    print("   5. Daily.co Transport Output (Audio)")
+    print("   3. Groq TTS Service (Text → Audio) - ECHO MODE")
+    print("   4. Daily.co Transport Output (Audio)")
     
-    # The issue is that CookingProcessor needs to be after STT but before TTS
-    # Let's use a simpler pipeline structure that handles StartFrame properly
+    # Try simple echo pipeline first - whatever you say gets spoken back
+    # This will test if STT/TTS work without the custom processor
     pipeline = Pipeline([
         transport.input(),        # Audio input from Daily.co
         stt_service,             # Groq STT: Audio → Text  
-        cooking_processor,       # Gemini AI: Text → Response Text
-        tts_service,             # Groq TTS: Text → Audio
+        tts_service,             # Groq TTS: Text → Audio (echo)
         transport.output()       # Audio output to Daily.co
     ])
     
-    # Alternative: Try without custom processor first to test STT/TTS
+    # TODO: Once echo works, add cooking_processor between STT and TTS:
     # pipeline = Pipeline([
     #     transport.input(),
     #     stt_service,
-    #     tts_service,
+    #     cooking_processor,
+    #     tts_service, 
     #     transport.output()
     # ])
     
-    print("✅ PIPELINE: Pipeline created successfully with 5 components")
-    logger.info("✅ Pipecat pipeline created: Daily.co → Groq STT → Gemini AI → Groq TTS → Daily.co")
+    print("✅ PIPELINE: Echo pipeline created successfully with 4 components")
+    logger.info("✅ Echo pipeline created: Daily.co → Groq STT → Groq TTS → Daily.co (ECHO MODE)")
     
     # Create and return pipeline task
     print("📋 PIPELINE: Creating pipeline task...")

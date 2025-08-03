@@ -353,8 +353,9 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     llm_context = LLMContext()
     
     # Custom processor for cooking responses
-    class CookingProcessor:
+    class CookingProcessor(FrameProcessor):
         def __init__(self, assistant: CookingVoiceAssistant):
+            super().__init__()
             self.assistant = assistant
             
         async def process_frame(self, frame, direction):
@@ -368,9 +369,11 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
                 logger.info(f"💭 Assistant response: {response}")
                 
                 # Return response frame
-                return TextFrame(response)
+                await self.push_frame(TextFrame(response), direction)
+                return
             
-            return frame
+            # Pass through other frames
+            await self.push_frame(frame, direction)
     
     cooking_processor = CookingProcessor(assistant)
     

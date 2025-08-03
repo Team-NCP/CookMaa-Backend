@@ -349,6 +349,10 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         )
     )
     
+    # Get Pipecat classes from imports
+    FrameProcessor = PIPECAT_IMPORTS['FrameProcessor']
+    TextFrame = PIPECAT_IMPORTS['TextFrame']
+    
     # Create processors for the pipeline
     llm_context = LLMContext()
     
@@ -376,6 +380,10 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
             await self.push_frame(frame, direction)
     
     cooking_processor = CookingProcessor(assistant)
+    
+    # Get more Pipecat classes from imports
+    Pipeline = PIPECAT_IMPORTS['Pipeline']
+    PipelineTask = PIPECAT_IMPORTS['PipelineTask']
     
     # Create pipeline
     pipeline = Pipeline([

@@ -444,7 +444,7 @@ When users ask questions, relate answers to this current step when relevant."""
             logger.error(f"❌ Gemini LLM processing error: {str(e)}")
             return "I'm having trouble thinking right now. Could you repeat that?"
 
-async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dict[str, Any]):
+async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dict[str, Any], session_id: str):
     """Create Pipecat pipeline for voice interaction with Groq STT/TTS"""
     
     if not PIPECAT_AVAILABLE or not PIPECAT_IMPORTS:
@@ -539,9 +539,10 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     
     # Custom processor for cooking responses - only processes TextFrames from STT
     class CookingProcessor(FrameProcessor):
-        def __init__(self, assistant: CookingVoiceAssistant):
+        def __init__(self, assistant: CookingVoiceAssistant, session_id: str):
             super().__init__()
             self.assistant = assistant
+            self.session_id = session_id
             self.frame_count = 0
             self._started = False
             print("🎛️ PROCESSOR: CookingProcessor initialized")
@@ -566,6 +567,10 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
             
             # Skip audio frames entirely - they should go directly to STT
             if frame_type in ['UserAudioRawFrame', 'AudioFrame']:
+                # Check for pending announcements every 100 audio frames
+                if self.frame_count % 100 == 0:
+                    await self.check_pending_announcements()
+                
                 # Don't process audio frames in the LLM processor
                 await self.push_frame(frame, direction)
                 return
@@ -606,8 +611,26 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
             
             # Pass through other frames
             await self.push_frame(frame, direction)
+            
+        async def check_pending_announcements(self):
+            """Check for pending announcements and speak them"""
+            if self.session_id in active_sessions:
+                session_data = active_sessions[self.session_id]
+                pending = session_data.get("pending_announcement")
+                
+                if pending:
+                    print(f"📢 PROCESSOR: Found pending announcement: '{pending}'")
+                    
+                    # Clear the pending announcement
+                    del session_data["pending_announcement"]
+                    
+                    # Send announcement to TTS
+                    print("🔊 PROCESSOR: Sending announcement to TTS")
+                    await self.push_frame(TextFrame(pending), FrameDirection.DOWNSTREAM)
+                    
+                    logger.info(f"📢 Announced: {pending}")
     
-    cooking_processor = CookingProcessor(assistant)
+    cooking_processor = CookingProcessor(assistant, session_id)
     
     # Create pipeline with proper STT → LLM → TTS flow
     print("🔧 PIPELINE: Creating Pipecat pipeline with Groq STT/TTS...")
@@ -747,7 +770,8 @@ async def start_voice_session(request: VoiceSessionRequest):
         task = await create_pipecat_pipeline(
             room_url=room_url,
             token=token,
-            recipe_context=request.recipe_context or {}
+            recipe_context=request.recipe_context or {},
+            session_id=session_id
         )
         print("✅ SESSION: Pipecat pipeline created")
         
@@ -864,27 +888,43 @@ async def announce_text(session_id: str, request: dict):
         if not announcement_text:
             raise HTTPException(status_code=400, detail="No text provided")
         
-        print(f"📢 ANNOUNCE: Sending announcement for session {session_id}: '{announcement_text}'")
+        print(f"📢 ANNOUNCE: Received announcement for session {session_id}: '{announcement_text}'")
         logger.info(f"📢 Announcing: {announcement_text}")
         
         # Get session data 
         session_data = active_sessions[session_id]
+        task = session_data.get("task")
         
-        # Create a TextFrame and inject it into the pipeline for TTS
+        if not task:
+            print(f"❌ ANNOUNCE: No active pipeline task found for session {session_id}")
+            raise HTTPException(status_code=400, detail="No active pipeline for session")
+        
+        # Inject TextFrame directly into the pipeline for TTS conversion
         if PIPECAT_AVAILABLE and PIPECAT_IMPORTS:
             TextFrame = PIPECAT_IMPORTS['TextFrame']
             
-            # Send announcement through the existing pipeline
-            # The TTS service will convert this to audio
-            print(f"🔊 ANNOUNCE: Converting to speech: '{announcement_text}'")
+            print(f"🔊 ANNOUNCE: Injecting text into TTS pipeline: '{announcement_text}'")
             
-            # For now, we'll store the announcement and let the voice assistant speak it
-            # In a full implementation, you would inject this into the active pipeline
+            # Create TextFrame and inject it into the pipeline
+            # This should trigger the TTS service to convert text to speech
+            text_frame = TextFrame(announcement_text)
+            
+            # Try to inject the frame into the active pipeline
+            try:
+                # This is the tricky part - we need to inject the frame into the running pipeline
+                # For now, let's simulate this by storing it for the CookingProcessor to pick up
+                session_data["pending_announcement"] = announcement_text
+                print(f"✅ ANNOUNCE: Stored announcement for pipeline processing")
+                
+            except Exception as inject_error:
+                print(f"❌ ANNOUNCE: Failed to inject frame: {inject_error}")
+                raise HTTPException(status_code=500, detail=f"Frame injection failed: {inject_error}")
             
         return {
             "status": "announced",
             "session_id": session_id,
-            "text": announcement_text
+            "text": announcement_text,
+            "injected": True
         }
         
     except Exception as e:

@@ -523,25 +523,26 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         print(f"❌ STT: Failed to create Groq STT service: {e}")
         raise Exception(f"STT service creation failed: {e}")
     
-    # Create OpenAI TTS service (most reliable)
-    print("🔊 TTS: Creating OpenAI TTS service...")
+    # Create TTS service with detailed debugging
+    print("🔊 TTS: Creating TTS service with debugging...")
+    print(f"🔊 TTS: Using API key: {'SET' if GROQ_API_KEY else 'NOT SET'}")
+    print(f"🔊 TTS: Service class: {GroqTTSService}")
+    
     try:
-        # Use OpenAI TTS with alloy voice - very reliable
-        tts_service = GroqTTSService(
-            api_key=GROQ_API_KEY,
-            voice="alloy"  # OpenAI voice - clear and reliable
-        )
-        print("✅ TTS: OpenAI TTS service created successfully")
-        logger.info("✅ OpenAI TTS service created with alloy voice")
+        # Try the simplest possible TTS configuration first
+        print("🔊 TTS: Attempting basic TTS service creation...")
+        tts_service = GroqTTSService(api_key=GROQ_API_KEY)
+        print("✅ TTS: Basic TTS service created successfully")
+        logger.info("✅ Basic TTS service created")
+        
+        # Test if the service has the right methods
+        print(f"🔊 TTS: Service methods: {[method for method in dir(tts_service) if not method.startswith('_')]}")
+        
     except Exception as e:
-        print(f"❌ TTS: Failed to create OpenAI TTS service: {e}")
-        # Try without voice parameter
-        try:
-            tts_service = GroqTTSService(api_key=GROQ_API_KEY)
-            print("✅ TTS: OpenAI TTS service created with default voice")
-        except Exception as e2:
-            print(f"❌ TTS: Failed with default config: {e2}")
-            raise Exception(f"TTS service creation failed: {e2}")
+        print(f"❌ TTS: Failed to create basic TTS service: {e}")
+        print(f"❌ TTS: Error type: {type(e).__name__}")
+        print(f"❌ TTS: Full error: {str(e)}")
+        raise Exception(f"TTS service creation failed: {e}")
     
     # Get Pipecat classes from imports
     FrameProcessor = PIPECAT_IMPORTS['FrameProcessor']
@@ -654,11 +655,30 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print("   4. Daily.co Transport Output (Audio)")
     print("🔧 PIPELINE: NO CookingProcessor - testing basic STT/TTS only")
     
-    # Simple echo pipeline - whatever you say gets spoken back
+    # Add debug logging to see if text reaches TTS
+    class DebugProcessor(FrameProcessor):
+        def __init__(self):
+            super().__init__()
+            self.frame_count = 0
+            
+        async def process_frame(self, frame, direction):
+            self.frame_count += 1
+            frame_type = type(frame).__name__
+            
+            if frame_type == 'TextFrame':
+                print(f"🔍 DEBUG: TextFrame #{self.frame_count} going to TTS: '{frame.text}'")
+                logger.info(f"🔍 Text to TTS: {frame.text}")
+            
+            await self.push_frame(frame, direction)
+    
+    debug_processor = DebugProcessor()
+    
+    # Simple echo pipeline with debug processor to see text flow
     pipeline = Pipeline([
         transport.input(),        # Audio input from Daily.co
         stt_service,             # Groq STT: Audio → Text  
-        tts_service,             # Groq TTS: Text → Audio (echo)
+        debug_processor,         # Debug: Log text frames
+        tts_service,             # TTS: Text → Audio (echo)
         transport.output()       # Audio output to Daily.co
     ])
     

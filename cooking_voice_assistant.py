@@ -781,6 +781,39 @@ async def test_groq():
             "error_type": type(e).__name__
         }
 
+@app.post("/{session_id}/connect")
+async def connect_rtvi_client(session_id: str, request: dict):
+    """RTVI client connection endpoint"""
+    
+    try:
+        print(f"🔗 RTVI: Client connecting to session {session_id}")
+        
+        if session_id not in active_sessions:
+            print(f"❌ RTVI: Session {session_id} not found")
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        session_data = active_sessions[session_id]
+        room_url = session_data["room_url"]
+        
+        print(f"🏠 RTVI: Directing client to room: {room_url}")
+        
+        # Return connection info for the iOS client
+        return {
+            "room_url": room_url,
+            "token": None,  # No token needed for private rooms
+            "config": {
+                "rtvi": {
+                    "voice": "elevenlabs",
+                    "llm": "gemini"
+                }
+            }
+        }
+        
+    except Exception as e:
+        error_msg = f"RTVI connection failed: {str(e)}"
+        print(f"❌ RTVI: {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
 @app.get("/debug/gemini")
 async def test_gemini():
     """Test Gemini API connectivity (LLM)"""

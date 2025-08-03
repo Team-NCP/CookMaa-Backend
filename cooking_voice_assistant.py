@@ -486,6 +486,12 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
             self.frame_count += 1
             frame_type = type(frame).__name__
             
+            # Always pass through StartFrame and other system frames first
+            if frame_type in ['StartFrame', 'EndFrame', 'SpeechControlParamsFrame']:
+                print(f"🔄 PROCESSOR: System frame #{self.frame_count} - Type: {frame_type}")
+                await self.push_frame(frame, direction)
+                return
+            
             print(f"🔄 PROCESSOR: Frame #{self.frame_count} - Type: {frame_type}, Direction: {direction}")
             logger.debug(f"🔄 Processing frame #{self.frame_count}: {frame_type} ({direction})")
             

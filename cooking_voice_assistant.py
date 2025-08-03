@@ -4,6 +4,8 @@ import os
 import sys
 import asyncio
 import logging
+import requests
+import json
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -206,10 +208,68 @@ else:
 
 print("🎯 API-CONFIG: All API configuration attempts completed")
 
+# Daily.co Room Management
+async def create_daily_room():
+    """Create a new Daily.co room for voice session"""
+    if not DAILY_API_KEY:
+        raise Exception("Daily.co API key not configured")
+    
+    print("🏠 DAILY: Creating new Daily.co room...")
+    logger.info("🏠 Creating new Daily.co room")
+    
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {DAILY_API_KEY}"
+        }
+        
+        room_config = {
+            "privacy": "private",
+            "properties": {
+                "enable_screenshare": False,
+                "enable_chat": False,
+                "enable_knocking": False,
+                "enable_prejoin_ui": False,
+                "start_video_off": True,
+                "start_audio_off": False,
+                "max_participants": 2,
+                "exp": int((datetime.now().timestamp() + 3600))  # 1 hour expiry
+            }
+        }
+        
+        response = requests.post(
+            "https://api.daily.co/v1/rooms",
+            headers=headers,
+            json=room_config,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            room_data = response.json()
+            room_url = room_data["url"]
+            room_name = room_data["name"]
+            
+            print(f"✅ DAILY: Room created successfully - {room_name}")
+            print(f"🔗 DAILY: Room URL: {room_url}")
+            logger.info(f"✅ Daily.co room created: {room_name} -> {room_url}")
+            
+            return room_url, None  # No token needed for private rooms
+        else:
+            error_msg = f"Failed to create room: {response.status_code} - {response.text}"
+            print(f"❌ DAILY: {error_msg}")
+            logger.error(f"❌ Daily.co room creation failed: {error_msg}")
+            raise Exception(error_msg)
+            
+    except Exception as e:
+        error_msg = f"Daily.co room creation error: {str(e)}"
+        print(f"❌ DAILY: {error_msg}")
+        logger.error(f"❌ {error_msg}")
+        raise Exception(error_msg)
+
 # Data models
 class VoiceSessionRequest(BaseModel):
-    room_url: str
-    token: str
+    room_url: Optional[str] = None  # Optional - will create if not provided
+    token: Optional[str] = None     # Optional - will create if not provided
     recipe_context: Optional[Dict[str, Any]] = None
     step_index: int = 0
 
@@ -335,19 +395,35 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     LLMContext = PIPECAT_IMPORTS['LLMContext']
     
     # Daily.co transport configuration
+    print(f"🚗 TRANSPORT: Creating Daily.co transport...")
+    print(f"🔗 TRANSPORT: Room URL: {room_url}")
+    print(f"🎫 TRANSPORT: Token: {'PROVIDED' if token else 'NONE'}")
+    logger.info(f"🚗 Creating Daily.co transport for room: {room_url}")
+    
+    transport_params = DailyParams(
+        audio_out_enabled=True,
+        audio_in_enabled=True,
+        video_out_enabled=False,
+        transcription_enabled=False,
+        vad_enabled=True,
+        vad_analyzer=SileroVADAnalyzer()
+    )
+    
+    print("🎛️ TRANSPORT: Daily.co parameters:")
+    print(f"   - Audio In: {transport_params.audio_in_enabled}")
+    print(f"   - Audio Out: {transport_params.audio_out_enabled}")
+    print(f"   - Video Out: {transport_params.video_out_enabled}")
+    print(f"   - VAD Enabled: {transport_params.vad_enabled}")
+    
     transport = DailyTransport(
         room_url=room_url,
         token=token,
         bot_name="Kukma",
-        params=DailyParams(
-            audio_out_enabled=True,
-            audio_in_enabled=True,
-            video_out_enabled=False,
-            transcription_enabled=False,
-            vad_enabled=True,
-            vad_analyzer=SileroVADAnalyzer()
-        )
+        params=transport_params
     )
+    
+    print("✅ TRANSPORT: Daily.co transport created successfully")
+    logger.info("✅ Daily.co transport created")
     
     # Get Pipecat classes from imports
     FrameProcessor = PIPECAT_IMPORTS['FrameProcessor']
@@ -361,20 +437,35 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         def __init__(self, assistant: CookingVoiceAssistant):
             super().__init__()
             self.assistant = assistant
+            self.frame_count = 0
+            print("🎛️ PROCESSOR: CookingProcessor initialized")
+            logger.info("🎛️ CookingProcessor initialized")
             
         async def process_frame(self, frame, direction):
+            self.frame_count += 1
+            frame_type = type(frame).__name__
+            
+            print(f"🔄 PROCESSOR: Frame #{self.frame_count} - Type: {frame_type}, Direction: {direction}")
+            logger.debug(f"🔄 Processing frame #{self.frame_count}: {frame_type} ({direction})")
+            
             if isinstance(frame, TextFrame):
                 # Process user speech
                 user_text = frame.text
+                print(f"🎤 PROCESSOR: User speech detected: '{user_text}'")
                 logger.info(f"🎤 User said: {user_text}")
                 
                 # Generate response
+                print("🤖 PROCESSOR: Generating AI response...")
                 response = await self.assistant.process_user_message(user_text)
+                print(f"💭 PROCESSOR: AI response generated: '{response}'")
                 logger.info(f"💭 Assistant response: {response}")
                 
                 # Return response frame
+                print("📤 PROCESSOR: Sending response frame to pipeline")
                 await self.push_frame(TextFrame(response), direction)
                 return
+            else:
+                print(f"📋 PROCESSOR: Passing through {frame_type} frame")
             
             # Pass through other frames
             await self.push_frame(frame, direction)
@@ -386,14 +477,27 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     PipelineTask = PIPECAT_IMPORTS['PipelineTask']
     
     # Create pipeline
+    print("🔧 PIPELINE: Creating Pipecat pipeline...")
+    print("🔧 PIPELINE: Components:")
+    print("   1. Daily.co Transport Input")
+    print("   2. CookingProcessor (AI)")
+    print("   3. Daily.co Transport Output")
+    
     pipeline = Pipeline([
         transport.input(),
         cooking_processor,
         transport.output()
     ])
     
+    print("✅ PIPELINE: Pipeline created successfully")
+    logger.info("✅ Pipecat pipeline created with 3 components")
+    
     # Create and return pipeline task
+    print("📋 PIPELINE: Creating pipeline task...")
     task = PipelineTask(pipeline)
+    print("✅ PIPELINE: Pipeline task created successfully")
+    logger.info("✅ Pipeline task created")
+    
     return task
 
 # API Endpoints
@@ -453,13 +557,19 @@ def health_check():
 async def start_voice_session(request: VoiceSessionRequest):
     """Start a new voice session with Daily.co + Pipecat"""
     
+    print("🎤 SESSION: Voice session request received")
+    print(f"📋 SESSION: Recipe context: {bool(request.recipe_context)}")
+    print(f"📋 SESSION: Step index: {request.step_index}")
+    
     if not PIPECAT_AVAILABLE:
+        print("❌ SESSION: Pipecat not available")
         raise HTTPException(
             status_code=503, 
             detail="Pipecat voice pipeline not available. Service running in limited mode."
         )
     
     if not DAILY_API_KEY or not GEMINI_API_KEY:
+        print("❌ SESSION: Missing required API keys")
         raise HTTPException(
             status_code=500, 
             detail="Voice session requires DAILY_API_KEY and GEMINI_API_KEY"
@@ -469,60 +579,104 @@ async def start_voice_session(request: VoiceSessionRequest):
         import uuid
         session_id = str(uuid.uuid4())
         
+        print(f"🎤 SESSION: Starting voice session {session_id}")
         logger.info(f"🎤 Starting voice session {session_id}")
-        logger.info(f"🏠 Room URL: {request.room_url}")
+        
+        # Create Daily.co room if not provided
+        room_url = request.room_url
+        token = request.token
+        
+        if not room_url or room_url == "temp-room":
+            print("🏠 SESSION: Creating new Daily.co room...")
+            room_url, token = await create_daily_room()
+        else:
+            print(f"🏠 SESSION: Using provided room: {room_url}")
+            logger.info(f"🏠 Using provided room URL: {room_url}")
+        
+        print(f"🔗 SESSION: Final room URL: {room_url}")
         
         # Create Pipecat pipeline
+        print("🔧 SESSION: Creating Pipecat pipeline...")
         task = await create_pipecat_pipeline(
-            room_url=request.room_url,
-            token=request.token,
+            room_url=room_url,
+            token=token,
             recipe_context=request.recipe_context or {}
         )
+        print("✅ SESSION: Pipecat pipeline created")
         
         # Store session
         active_sessions[session_id] = {
             "task": task,
-            "room_url": request.room_url,
+            "room_url": room_url,
             "recipe_context": request.recipe_context,
-            "step_index": request.step_index
+            "step_index": request.step_index,
+            "created_at": datetime.now().isoformat()
         }
         
+        print(f"💾 SESSION: Session {session_id} stored in active sessions")
+        print(f"📊 SESSION: Total active sessions: {len(active_sessions)}")
+        
         # Start the pipeline in background
+        print("🚀 SESSION: Starting pipeline in background...")
         asyncio.create_task(run_pipeline(session_id, task))
         
+        print(f"✅ SESSION: Voice session {session_id} started successfully")
         logger.info(f"✅ Voice session {session_id} started successfully")
         
         return VoiceSessionResponse(
             status="started",
             session_id=session_id,
-            room_url=request.room_url
+            room_url=room_url
         )
         
     except Exception as e:
-        logger.error(f"❌ Failed to start voice session: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to start voice session: {str(e)}")
+        error_msg = f"Failed to start voice session: {str(e)}"
+        print(f"❌ SESSION: {error_msg}")
+        logger.error(f"❌ {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
 
 async def run_pipeline(session_id: str, task):
     """Run Pipecat pipeline for a session"""
     try:
+        print(f"🚀 RUNNER: Starting pipeline for session {session_id}")
         logger.info(f"🚀 Running pipeline for session {session_id}")
         
         # Create pipeline runner
+        print("🏃 RUNNER: Creating PipelineRunner...")
         PipelineRunner = PIPECAT_IMPORTS['PipelineRunner']
         runner = PipelineRunner()
+        print("✅ RUNNER: PipelineRunner created")
         
         # Run the task
+        print(f"▶️ RUNNER: Starting pipeline task for session {session_id}")
+        print("🎧 RUNNER: Pipeline is now listening for audio input...")
+        print("🔊 RUNNER: Pipeline is ready to generate audio output...")
+        logger.info(f"▶️ Pipeline task started - listening for audio")
+        
         await runner.run(task)
         
+        print(f"🏁 RUNNER: Pipeline finished for session {session_id}")
         logger.info(f"🏁 Pipeline finished for session {session_id}")
         
     except Exception as e:
-        logger.error(f"❌ Pipeline error for session {session_id}: {str(e)}")
+        error_msg = f"Pipeline error for session {session_id}: {str(e)}"
+        print(f"❌ RUNNER: {error_msg}")
+        logger.error(f"❌ {error_msg}")
+        
+        # Log additional debug info
+        print(f"🔍 RUNNER: Active sessions count: {len(active_sessions)}")
+        if session_id in active_sessions:
+            session_data = active_sessions[session_id]
+            print(f"🔍 RUNNER: Session data keys: {list(session_data.keys())}")
     finally:
         # Clean up session
         if session_id in active_sessions:
+            print(f"🧹 RUNNER: Cleaning up session {session_id}")
             del active_sessions[session_id]
+            print(f"🧹 RUNNER: Session {session_id} cleaned up")
             logger.info(f"🧹 Cleaned up session {session_id}")
+        else:
+            print(f"⚠️ RUNNER: Session {session_id} not found in active sessions during cleanup")
 
 @app.post("/update-recipe-context/{session_id}")
 async def update_recipe_context(session_id: str, context: RecipeContextUpdate):

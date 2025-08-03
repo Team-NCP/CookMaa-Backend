@@ -629,19 +629,19 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
                     
                     logger.info(f"📢 Announced: {pending}")
     
-    cooking_processor = CookingProcessor(assistant, session_id)
+    # Skip CookingProcessor for now - testing simple echo pipeline
+    # cooking_processor = CookingProcessor(assistant, session_id)
     
-    # Create pipeline with proper STT → LLM → TTS flow
-    print("🔧 PIPELINE: Creating Pipecat pipeline with Groq STT/TTS...")
-    print("🔧 PIPELINE: TESTING SIMPLE PIPELINE FIRST...")
+    # Create simple echo pipeline to test STT/TTS
+    print("🔧 PIPELINE: Creating SIMPLE ECHO pipeline...")
     print("🔧 PIPELINE: Components:")
     print("   1. Daily.co Transport Input (Audio)")
     print("   2. Groq STT Service (Audio → Text)")
-    print("   3. Groq TTS Service (Text → Audio) - ECHO MODE")
+    print("   3. Groq TTS Service (Text → Audio) - ECHO MODE") 
     print("   4. Daily.co Transport Output (Audio)")
+    print("🔧 PIPELINE: NO CookingProcessor - testing basic STT/TTS only")
     
-    # Try simple echo pipeline first - whatever you say gets spoken back
-    # This will test if STT/TTS work without the custom processor
+    # Simple echo pipeline - whatever you say gets spoken back
     pipeline = Pipeline([
         transport.input(),        # Audio input from Daily.co
         stt_service,             # Groq STT: Audio → Text  
@@ -649,7 +649,8 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         transport.output()       # Audio output to Daily.co
     ])
     
-    # TODO: Once echo works, add cooking_processor between STT and TTS:
+    # TODO: Once echo works, create and add cooking_processor:
+    # cooking_processor = CookingProcessor(assistant, session_id)
     # pipeline = Pipeline([
     #     transport.input(),
     #     stt_service,

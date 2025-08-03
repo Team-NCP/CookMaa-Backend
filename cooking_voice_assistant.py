@@ -498,23 +498,37 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print("✅ TRANSPORT: Daily.co transport created successfully")
     logger.info("✅ Daily.co transport created")
     
+    # Check if Groq services are available
+    if not PIPECAT_IMPORTS.get('GROQ_STT_AVAILABLE', False):
+        raise Exception("Groq STT service not available in current Pipecat version")
+    if not PIPECAT_IMPORTS.get('GROQ_TTS_AVAILABLE', False):
+        raise Exception("Groq TTS service not available in current Pipecat version")
+    
     # Create Groq STT service for speech-to-text
     print("🎤 STT: Creating Groq STT service...")
-    stt_service = GroqSTTService(
-        api_key=GROQ_API_KEY,
-        model="whisper-large-v3"  # Groq's best STT model
-    )
-    print("✅ STT: Groq STT service created")
-    logger.info("✅ Groq STT service created")
+    try:
+        stt_service = GroqSTTService(
+            api_key=GROQ_API_KEY,
+            model="whisper-large-v3"  # Groq's best STT model
+        )
+        print("✅ STT: Groq STT service created successfully")
+        logger.info("✅ Groq STT service created")
+    except Exception as e:
+        print(f"❌ STT: Failed to create Groq STT service: {e}")
+        raise Exception(f"STT service creation failed: {e}")
     
     # Create Groq TTS service for text-to-speech  
     print("🔊 TTS: Creating Groq TTS service...")
-    tts_service = GroqTTSService(
-        api_key=GROQ_API_KEY,
-        voice_id="alloy"  # Clear voice for cooking instructions
-    )
-    print("✅ TTS: Groq TTS service created")
-    logger.info("✅ Groq TTS service created")
+    try:
+        tts_service = GroqTTSService(
+            api_key=GROQ_API_KEY,
+            voice_id="alloy"  # Clear voice for cooking instructions
+        )
+        print("✅ TTS: Groq TTS service created successfully")
+        logger.info("✅ Groq TTS service created")
+    except Exception as e:
+        print(f"❌ TTS: Failed to create Groq TTS service: {e}")
+        raise Exception(f"TTS service creation failed: {e}")
     
     # Get Pipecat classes from imports
     FrameProcessor = PIPECAT_IMPORTS['FrameProcessor']

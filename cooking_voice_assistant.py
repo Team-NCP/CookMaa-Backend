@@ -47,22 +47,30 @@ try:
     from pipecat.frames.frames import TextFrame, EndFrame
     from pipecat.audio.vad.silero import SileroVADAnalyzer
     
-    # Try different TTS/STT import paths
+    # Import STT and TTS services - Use Groq STT and PlayAI TTS
     try:
-        from pipecat.services.groq import GroqSTTService, GroqTTSService
+        from pipecat.services.groq import GroqSTTService
         GROQ_STT_AVAILABLE = True
+        print("✅ IMPORTS: Groq STT service imported")
+    except ImportError as groq_stt_e:
+        print(f"⚠️ IMPORTS: Groq STT not available: {groq_stt_e}")
+        GroqSTTService = None
+        GROQ_STT_AVAILABLE = False
+    
+    # Use PlayAI TTS hosted on Groq
+    try:
+        from pipecat.services.playai import PlayAITTSService
+        GroqTTSService = PlayAITTSService  # Use PlayAI TTS with Groq API
         GROQ_TTS_AVAILABLE = True
-        print("✅ IMPORTS: Groq STT/TTS services imported")
-    except ImportError as groq_e:
-        print(f"⚠️ IMPORTS: Groq services not available: {groq_e}")
-        # Try alternative imports for STT/TTS
+        print("✅ IMPORTS: PlayAI TTS service imported (hosted on Groq)")
+    except ImportError as playai_e:
+        print(f"⚠️ IMPORTS: PlayAI TTS not available: {playai_e}")
+        # Try OpenAI TTS as fallback
         try:
-            from pipecat.services.openai import OpenAISTTService, OpenAITTSService
-            GroqSTTService = OpenAISTTService  # Use OpenAI STT as fallback
-            GroqTTSService = OpenAITTSService  # Use OpenAI TTS as fallback
-            GROQ_STT_AVAILABLE = True
+            from pipecat.services.openai import OpenAITTSService
+            GroqTTSService = OpenAITTSService
             GROQ_TTS_AVAILABLE = True
-            print("✅ IMPORTS: Using OpenAI STT/TTS as fallback")
+            print("✅ IMPORTS: OpenAI TTS as fallback")
         except ImportError:
             GroqSTTService = None
             GroqTTSService = None
@@ -517,18 +525,24 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         print(f"❌ STT: Failed to create Groq STT service: {e}")
         raise Exception(f"STT service creation failed: {e}")
     
-    # Create Groq TTS service for text-to-speech  
-    print("🔊 TTS: Creating Groq TTS service...")
+    # Create PlayAI TTS service (hosted on Groq)
+    print("🔊 TTS: Creating PlayAI TTS service (hosted on Groq)...")
     try:
         tts_service = GroqTTSService(
             api_key=GROQ_API_KEY,
-            voice_id="alloy"  # Clear voice for cooking instructions
+            voice_id="s3://voice-cloning-zero-shot/d9ff78ba-d016-47f6-b0ef-dd630f59414e/female-cs/manifest.json"  # PlayAI voice
         )
-        print("✅ TTS: Groq TTS service created successfully")
-        logger.info("✅ Groq TTS service created")
+        print("✅ TTS: PlayAI TTS service created successfully")
+        logger.info("✅ PlayAI TTS service created (hosted on Groq)")
     except Exception as e:
-        print(f"❌ TTS: Failed to create Groq TTS service: {e}")
-        raise Exception(f"TTS service creation failed: {e}")
+        print(f"❌ TTS: Failed to create PlayAI TTS service: {e}")
+        # Try with simpler configuration
+        try:
+            tts_service = GroqTTSService(api_key=GROQ_API_KEY)
+            print("✅ TTS: PlayAI TTS service created with default config")
+        except Exception as e2:
+            print(f"❌ TTS: Failed with default config: {e2}")
+            raise Exception(f"TTS service creation failed: {e2}")
     
     # Get Pipecat classes from imports
     FrameProcessor = PIPECAT_IMPORTS['FrameProcessor']

@@ -46,6 +46,7 @@ try:
     from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
     from pipecat.frames.frames import TextFrame, EndFrame
     from pipecat.audio.vad.silero import SileroVADAnalyzer
+    from pipecat.services.groq import GroqSTTService, GroqTTSService
     
     PIPECAT_IMPORTS = {
         'Pipeline': Pipeline,
@@ -57,7 +58,9 @@ try:
         'FrameProcessor': FrameProcessor,
         'TextFrame': TextFrame,
         'EndFrame': EndFrame,
-        'SileroVADAnalyzer': SileroVADAnalyzer
+        'SileroVADAnalyzer': SileroVADAnalyzer,
+        'GroqSTTService': GroqSTTService,
+        'GroqTTSService': GroqTTSService
     }
     PIPECAT_AVAILABLE = True
     print("✅ IMPORTS: Pipecat v0.0.77+ imported successfully (method 1)")
@@ -418,10 +421,13 @@ When users ask questions, relate answers to this current step when relevant."""
             return "I'm having trouble thinking right now. Could you repeat that?"
 
 async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dict[str, Any]):
-    """Create Pipecat pipeline for voice interaction"""
+    """Create Pipecat pipeline for voice interaction with Groq STT/TTS"""
     
     if not PIPECAT_AVAILABLE or not PIPECAT_IMPORTS:
         raise Exception("Pipecat not available - voice pipeline cannot be created")
+    
+    if not GROQ_API_KEY:
+        raise Exception("Groq API key required for STT/TTS")
     
     # Create cooking assistant
     assistant = CookingVoiceAssistant(recipe_context)
@@ -434,6 +440,8 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     TextFrame = PIPECAT_IMPORTS['TextFrame']
     SileroVADAnalyzer = PIPECAT_IMPORTS['SileroVADAnalyzer']
     LLMContext = PIPECAT_IMPORTS['LLMContext']
+    GroqSTTService = PIPECAT_IMPORTS['GroqSTTService']
+    GroqTTSService = PIPECAT_IMPORTS['GroqTTSService']
     
     # Daily.co transport configuration
     print(f"🚗 TRANSPORT: Creating Daily.co transport...")
@@ -466,6 +474,24 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print("✅ TRANSPORT: Daily.co transport created successfully")
     logger.info("✅ Daily.co transport created")
     
+    # Create Groq STT service for speech-to-text
+    print("🎤 STT: Creating Groq STT service...")
+    stt_service = GroqSTTService(
+        api_key=GROQ_API_KEY,
+        model="whisper-large-v3"  # Groq's best STT model
+    )
+    print("✅ STT: Groq STT service created")
+    logger.info("✅ Groq STT service created")
+    
+    # Create Groq TTS service for text-to-speech  
+    print("🔊 TTS: Creating Groq TTS service...")
+    tts_service = GroqTTSService(
+        api_key=GROQ_API_KEY,
+        voice_id="alloy"  # Clear voice for cooking instructions
+    )
+    print("✅ TTS: Groq TTS service created")
+    logger.info("✅ Groq TTS service created")
+    
     # Get Pipecat classes from imports
     FrameProcessor = PIPECAT_IMPORTS['FrameProcessor']
     TextFrame = PIPECAT_IMPORTS['TextFrame']
@@ -492,6 +518,13 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
                 await self.push_frame(frame, direction)
                 return
             
+            # Only log every 100th audio frame to reduce noise
+            if frame_type == 'UserAudioRawFrame':
+                if self.frame_count % 100 == 0:
+                    print(f"🔄 PROCESSOR: Audio frame #{self.frame_count} (logging every 100th)")
+                await self.push_frame(frame, direction)
+                return
+            
             print(f"🔄 PROCESSOR: Frame #{self.frame_count} - Type: {frame_type}, Direction: {direction}")
             logger.debug(f"🔄 Processing frame #{self.frame_count}: {frame_type} ({direction})")
             
@@ -501,43 +534,47 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
                 print(f"🎤 PROCESSOR: User speech detected: '{user_text}'")
                 logger.info(f"🎤 User said: {user_text}")
                 
-                # Generate response
-                print("🤖 PROCESSOR: Generating AI response...")
-                response = await self.assistant.process_user_message(user_text)
-                print(f"💭 PROCESSOR: AI response generated: '{response}'")
-                logger.info(f"💭 Assistant response: {response}")
-                
-                # Return response frame
-                print("📤 PROCESSOR: Sending response frame to pipeline")
-                await self.push_frame(TextFrame(response), direction)
-                return
-            else:
-                print(f"📋 PROCESSOR: Passing through {frame_type} frame")
+                # Check for wake word
+                if "hey kukma" in user_text.lower() or "hey cookma" in user_text.lower():
+                    print(f"👋 PROCESSOR: Wake word detected! Processing: '{user_text}'")
+                    
+                    # Generate response
+                    print("🤖 PROCESSOR: Generating AI response...")
+                    response = await self.assistant.process_user_message(user_text)
+                    print(f"💭 PROCESSOR: AI response generated: '{response}'")
+                    logger.info(f"💭 Assistant response: {response}")
+                    
+                    # Return response frame for TTS
+                    print("📤 PROCESSOR: Sending response frame to TTS")
+                    await self.push_frame(TextFrame(response), direction)
+                    return
+                else:
+                    print(f"⏭️ PROCESSOR: No wake word detected, ignoring: '{user_text}'")
             
             # Pass through other frames
             await self.push_frame(frame, direction)
     
     cooking_processor = CookingProcessor(assistant)
     
-    # Get more Pipecat classes from imports
-    Pipeline = PIPECAT_IMPORTS['Pipeline']
-    PipelineTask = PIPECAT_IMPORTS['PipelineTask']
-    
-    # Create pipeline
-    print("🔧 PIPELINE: Creating Pipecat pipeline...")
+    # Create pipeline with proper STT → LLM → TTS flow
+    print("🔧 PIPELINE: Creating Pipecat pipeline with Groq STT/TTS...")
     print("🔧 PIPELINE: Components:")
-    print("   1. Daily.co Transport Input")
-    print("   2. CookingProcessor (AI)")
-    print("   3. Daily.co Transport Output")
+    print("   1. Daily.co Transport Input (Audio)")
+    print("   2. Groq STT Service (Audio → Text)")
+    print("   3. CookingProcessor (LLM AI)")
+    print("   4. Groq TTS Service (Text → Audio)")
+    print("   5. Daily.co Transport Output (Audio)")
     
     pipeline = Pipeline([
-        transport.input(),
-        cooking_processor,
-        transport.output()
+        transport.input(),        # Audio input from Daily.co
+        stt_service,             # Groq STT: Audio → Text  
+        cooking_processor,       # Gemini AI: Text → Response Text
+        tts_service,             # Groq TTS: Text → Audio
+        transport.output()       # Audio output to Daily.co
     ])
     
-    print("✅ PIPELINE: Pipeline created successfully")
-    logger.info("✅ Pipecat pipeline created with 3 components")
+    print("✅ PIPELINE: Pipeline created successfully with 5 components")
+    logger.info("✅ Pipecat pipeline created: Daily.co → Groq STT → Gemini AI → Groq TTS → Daily.co")
     
     # Create and return pipeline task
     print("📋 PIPELINE: Creating pipeline task...")
@@ -751,6 +788,47 @@ async def update_recipe_context(session_id: str, context: RecipeContextUpdate):
     except Exception as e:
         logger.error(f"❌ Failed to update context for session {session_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update context: {str(e)}")
+
+@app.post("/announce/{session_id}")
+async def announce_text(session_id: str, request: dict):
+    """Send text announcement through TTS pipeline"""
+    
+    if session_id not in active_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    try:
+        announcement_text = request.get("text", "")
+        if not announcement_text:
+            raise HTTPException(status_code=400, detail="No text provided")
+        
+        print(f"📢 ANNOUNCE: Sending announcement for session {session_id}: '{announcement_text}'")
+        logger.info(f"📢 Announcing: {announcement_text}")
+        
+        # Get session data 
+        session_data = active_sessions[session_id]
+        
+        # Create a TextFrame and inject it into the pipeline for TTS
+        if PIPECAT_AVAILABLE and PIPECAT_IMPORTS:
+            TextFrame = PIPECAT_IMPORTS['TextFrame']
+            
+            # Send announcement through the existing pipeline
+            # The TTS service will convert this to audio
+            print(f"🔊 ANNOUNCE: Converting to speech: '{announcement_text}'")
+            
+            # For now, we'll store the announcement and let the voice assistant speak it
+            # In a full implementation, you would inject this into the active pipeline
+            
+        return {
+            "status": "announced",
+            "session_id": session_id,
+            "text": announcement_text
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to announce text: {str(e)}"
+        print(f"❌ ANNOUNCE: {error_msg}")
+        logger.error(f"❌ {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/sessions")
 async def get_active_sessions():

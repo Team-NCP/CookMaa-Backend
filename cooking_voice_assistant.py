@@ -224,7 +224,7 @@ async def create_daily_room():
         }
         
         room_config = {
-            "privacy": "private",
+            "privacy": "public",  # Changed to public for easier access
             "properties": {
                 "enable_screenshare": False,
                 "enable_chat": False,
@@ -232,7 +232,7 @@ async def create_daily_room():
                 "enable_prejoin_ui": False,
                 "start_video_off": True,
                 "start_audio_off": False,
-                "max_participants": 2,
+                "max_participants": 10,  # Allow more participants
                 "exp": int((datetime.now().timestamp() + 3600))  # 1 hour expiry
             }
         }
@@ -253,7 +253,9 @@ async def create_daily_room():
             print(f"🔗 DAILY: Room URL: {room_url}")
             logger.info(f"✅ Daily.co room created: {room_name} -> {room_url}")
             
-            return room_url, None  # No token needed for private rooms
+            # Create meeting token for authenticated access
+            token = await create_daily_token(room_name)
+            return room_url, token
         else:
             error_msg = f"Failed to create room: {response.status_code} - {response.text}"
             print(f"❌ DAILY: {error_msg}")
@@ -266,6 +268,44 @@ async def create_daily_room():
         logger.error(f"❌ {error_msg}")
         raise Exception(error_msg)
 
+async def create_daily_token(room_name: str):
+    """Create a Daily.co meeting token for room access"""
+    try:
+        print(f"🎫 DAILY: Creating meeting token for room {room_name}")
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {DAILY_API_KEY}"
+        }
+        
+        token_config = {
+            "properties": {
+                "room_name": room_name,
+                "is_owner": False,
+                "exp": int((datetime.now().timestamp() + 3600))  # 1 hour expiry
+            }
+        }
+        
+        response = requests.post(
+            "https://api.daily.co/v1/meeting-tokens",
+            headers=headers,
+            json=token_config,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            token_data = response.json()
+            token = token_data["token"]
+            print(f"✅ DAILY: Meeting token created")
+            return token
+        else:
+            print(f"⚠️ DAILY: Failed to create token: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"⚠️ DAILY: Token creation error: {str(e)}")
+        return None
+
 # Data models
 class VoiceSessionRequest(BaseModel):
     room_url: Optional[str] = None  # Optional - will create if not provided
@@ -277,6 +317,7 @@ class VoiceSessionResponse(BaseModel):
     status: str
     session_id: str
     room_url: str
+    token: Optional[str] = None
 
 class RecipeContextUpdate(BaseModel):
     title: str
@@ -608,6 +649,7 @@ async def start_voice_session(request: VoiceSessionRequest):
         active_sessions[session_id] = {
             "task": task,
             "room_url": room_url,
+            "token": token,
             "recipe_context": request.recipe_context,
             "step_index": request.step_index,
             "created_at": datetime.now().isoformat()
@@ -626,7 +668,8 @@ async def start_voice_session(request: VoiceSessionRequest):
         return VoiceSessionResponse(
             status="started",
             session_id=session_id,
-            room_url=room_url
+            room_url=room_url,
+            token=token
         )
         
     except Exception as e:
@@ -794,13 +837,15 @@ async def connect_rtvi_client(session_id: str, request: dict):
         
         session_data = active_sessions[session_id]
         room_url = session_data["room_url"]
+        token = session_data.get("token")
         
         print(f"🏠 RTVI: Directing client to room: {room_url}")
+        print(f"🎫 RTVI: Token: {'PROVIDED' if token else 'NONE'}")
         
         # Return connection info for the iOS client
         return {
             "room_url": room_url,
-            "token": None,  # No token needed for private rooms
+            "token": token,
             "config": {
                 "rtvi": {
                     "voice": "elevenlabs",

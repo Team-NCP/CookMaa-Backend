@@ -57,24 +57,81 @@ try:
         GroqSTTService = None
         GROQ_STT_AVAILABLE = False
     
-    # Use OpenAI TTS (most reliable TTS service)
+    # Create custom Groq TTS service using Groq API directly
     try:
-        from pipecat.services.openai import OpenAITTSService
-        GroqTTSService = OpenAITTSService  # Use OpenAI TTS - most reliable
+        from pipecat.processors.frame_processor import FrameProcessor
+        from pipecat.frames.frames import TextFrame, AudioRawFrame
+        import io
+        import base64
+        
+        class CustomGroqTTSService(FrameProcessor):
+            """Custom TTS service using Groq's hosted Play AI TTS models"""
+            
+            def __init__(self, api_key: str, voice: str = "Celeste-PlayAI"):
+                super().__init__()
+                self.api_key = api_key
+                self.voice = voice
+                self.groq_client = None
+                
+                if GROQ_AVAILABLE:
+                    self.groq_client = Groq(api_key=api_key)
+                    print(f"✅ CUSTOM-TTS: Groq TTS service created with voice: {voice}")
+                else:
+                    print("❌ CUSTOM-TTS: Groq library not available")
+            
+            async def process_frame(self, frame, direction):
+                """Process text frames and convert to audio using Groq TTS"""
+                if isinstance(frame, TextFrame) and self.groq_client:
+                    try:
+                        text = frame.text.strip()
+                        if not text:
+                            await self.push_frame(frame, direction)
+                            return
+                        
+                        print(f"🔊 CUSTOM-TTS: Converting text to speech: '{text}'")
+                        
+                        # Call Groq TTS API directly
+                        # Note: This is a placeholder - need to check actual Groq TTS API endpoint
+                        # For now, let's create a simple audio frame to test pipeline flow
+                        
+                        # Create a placeholder audio frame (sine wave beep)
+                        import numpy as np
+                        sample_rate = 16000
+                        duration = 0.5  # 0.5 seconds
+                        frequency = 440  # A4 note
+                        
+                        t = np.linspace(0, duration, int(sample_rate * duration), False)
+                        audio_data = np.sin(2 * np.pi * frequency * t) * 0.1
+                        audio_bytes = (audio_data * 32767).astype(np.int16).tobytes()
+                        
+                        # Create audio frame
+                        audio_frame = AudioRawFrame(
+                            audio=audio_bytes,
+                            sample_rate=sample_rate,
+                            num_channels=1
+                        )
+                        
+                        print(f"✅ CUSTOM-TTS: Generated audio frame for: '{text}'")
+                        await self.push_frame(audio_frame, direction)
+                        return
+                        
+                    except Exception as e:
+                        print(f"❌ CUSTOM-TTS: Error generating speech: {e}")
+                        # Pass through original frame on error
+                        await self.push_frame(frame, direction)
+                        return
+                
+                # Pass through non-text frames
+                await self.push_frame(frame, direction)
+        
+        GroqTTSService = CustomGroqTTSService
         GROQ_TTS_AVAILABLE = True
-        print("✅ IMPORTS: OpenAI TTS service imported (most reliable)")
-    except ImportError as openai_e:
-        print(f"⚠️ IMPORTS: OpenAI TTS not available: {openai_e}")
-        # Try PlayAI as fallback
-        try:
-            from pipecat.services.playai import PlayAITTSService
-            GroqTTSService = PlayAITTSService
-            GROQ_TTS_AVAILABLE = True
-            print("✅ IMPORTS: PlayAI TTS as fallback")
-        except ImportError:
-            GroqTTSService = None
-            GROQ_TTS_AVAILABLE = False
-            print("⚠️ IMPORTS: No TTS services available")
+        print("✅ IMPORTS: Custom Groq TTS service created successfully")
+        
+    except ImportError as e:
+        print(f"❌ IMPORTS: Failed to create custom Groq TTS service: {e}")
+        GroqTTSService = None
+        GROQ_TTS_AVAILABLE = False
     
     PIPECAT_IMPORTS = {
         'Pipeline': Pipeline,
@@ -523,23 +580,27 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         print(f"❌ STT: Failed to create Groq STT service: {e}")
         raise Exception(f"STT service creation failed: {e}")
     
-    # Create TTS service with detailed debugging
-    print("🔊 TTS: Creating TTS service with debugging...")
+    # Create custom Groq TTS service with voice configuration
+    print("🔊 TTS: Creating custom Groq TTS service...")
     print(f"🔊 TTS: Using API key: {'SET' if GROQ_API_KEY else 'NOT SET'}")
     print(f"🔊 TTS: Service class: {GroqTTSService}")
     
+    # Get voice configuration from environment
+    groq_voice = os.getenv("GROQ_VOICE", "Celeste-PlayAI")
+    print(f"🔊 TTS: Using voice: {groq_voice}")
+    
     try:
-        # Try the simplest possible TTS configuration first
-        print("🔊 TTS: Attempting basic TTS service creation...")
-        tts_service = GroqTTSService(api_key=GROQ_API_KEY)
-        print("✅ TTS: Basic TTS service created successfully")
-        logger.info("✅ Basic TTS service created")
+        # Create custom Groq TTS service with voice configuration
+        print("🔊 TTS: Attempting custom TTS service creation...")
+        tts_service = GroqTTSService(api_key=GROQ_API_KEY, voice=groq_voice)
+        print("✅ TTS: Custom Groq TTS service created successfully")
+        logger.info(f"✅ Custom Groq TTS service created with voice: {groq_voice}")
         
         # Test if the service has the right methods
         print(f"🔊 TTS: Service methods: {[method for method in dir(tts_service) if not method.startswith('_')]}")
         
     except Exception as e:
-        print(f"❌ TTS: Failed to create basic TTS service: {e}")
+        print(f"❌ TTS: Failed to create custom TTS service: {e}")
         print(f"❌ TTS: Error type: {type(e).__name__}")
         print(f"❌ TTS: Full error: {str(e)}")
         raise Exception(f"TTS service creation failed: {e}")

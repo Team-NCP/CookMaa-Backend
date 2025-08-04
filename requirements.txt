@@ -17,5 +17,5 @@ groq>=0.4.0
 # Audio processing
 numpy>=1.24.0,<2.0.0
 
-# Pipecat with all required dependencies for your stack
-pipecat-ai[daily,groq,google,silero]>=0.0.77
+# Pipecat with all required dependencies for your stack (using latest available version)
+pipecat-ai[daily,groq,google,silero]>=0.0.36

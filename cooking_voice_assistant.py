@@ -63,6 +63,7 @@ try:
         from pipecat.frames.frames import TextFrame, AudioRawFrame
         import io
         import base64
+        import os
         
         class CustomGroqTTSService(FrameProcessor):
             """Custom TTS service using Groq's hosted Play AI TTS models"""
@@ -90,29 +91,72 @@ try:
                         
                         print(f"🔊 CUSTOM-TTS: Converting text to speech: '{text}'")
                         
-                        # Call Groq TTS API directly
-                        # Note: This is a placeholder - need to check actual Groq TTS API endpoint
-                        # For now, let's create a simple audio frame to test pipeline flow
-                        
-                        # Create a placeholder audio frame (sine wave beep)
-                        import numpy as np
-                        sample_rate = 16000
-                        duration = 0.5  # 0.5 seconds
-                        frequency = 440  # A4 note
-                        
-                        t = np.linspace(0, duration, int(sample_rate * duration), False)
-                        audio_data = np.sin(2 * np.pi * frequency * t) * 0.1
-                        audio_bytes = (audio_data * 32767).astype(np.int16).tobytes()
-                        
-                        # Create audio frame
-                        audio_frame = AudioRawFrame(
-                            audio=audio_bytes,
-                            sample_rate=sample_rate,
-                            num_channels=1
-                        )
-                        
-                        print(f"✅ CUSTOM-TTS: Generated audio frame for: '{text}'")
-                        await self.push_frame(audio_frame, direction)
+                        # Call Groq TTS API directly using the documented endpoint
+                        try:
+                            # Create TTS request using Groq's audio.speech.create API
+                            response = self.groq_client.audio.speech.create(
+                                model="playai-tts",
+                                voice=self.voice,  # e.g., "Celeste-PlayAI"
+                                input=text,
+                                response_format="wav"  # Compatible with Pipecat
+                            )
+                            
+                            print(f"✅ CUSTOM-TTS: Groq API call successful for voice: {self.voice}")
+                            
+                            # Get audio bytes from response
+                            audio_content = response.content
+                            print(f"🔊 CUSTOM-TTS: Received {len(audio_content)} bytes of audio data")
+                            
+                            # Convert WAV to raw audio for Pipecat
+                            import wave
+                            import tempfile
+                            
+                            # Write WAV data to temporary file
+                            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+                                temp_wav.write(audio_content)
+                                temp_wav_path = temp_wav.name
+                            
+                            # Read WAV file and extract raw audio data
+                            with wave.open(temp_wav_path, 'rb') as wav_file:
+                                sample_rate = wav_file.getframerate()
+                                num_channels = wav_file.getnchannels()
+                                audio_bytes = wav_file.readframes(wav_file.getnframes())
+                            
+                            # Clean up temp file
+                            os.unlink(temp_wav_path)
+                            
+                            # Create audio frame for Pipecat
+                            audio_frame = AudioRawFrame(
+                                audio=audio_bytes,
+                                sample_rate=sample_rate,
+                                num_channels=num_channels
+                            )
+                            
+                            print(f"✅ CUSTOM-TTS: Created AudioRawFrame - Rate: {sample_rate}Hz, Channels: {num_channels}")
+                            await self.push_frame(audio_frame, direction)
+                            
+                        except Exception as api_error:
+                            print(f"❌ CUSTOM-TTS: Groq API error: {api_error}")
+                            
+                            # Fallback to beep tone if API fails
+                            print("🔄 CUSTOM-TTS: Falling back to beep tone")
+                            import numpy as np
+                            sample_rate = 16000
+                            duration = 0.5
+                            frequency = 440
+                            
+                            t = np.linspace(0, duration, int(sample_rate * duration), False)
+                            audio_data = np.sin(2 * np.pi * frequency * t) * 0.1
+                            audio_bytes = (audio_data * 32767).astype(np.int16).tobytes()
+                            
+                            audio_frame = AudioRawFrame(
+                                audio=audio_bytes,
+                                sample_rate=sample_rate,
+                                num_channels=1
+                            )
+                            
+                            print(f"🔄 CUSTOM-TTS: Generated fallback beep for: '{text}'")
+                            await self.push_frame(audio_frame, direction)
                         return
                         
                     except Exception as e:

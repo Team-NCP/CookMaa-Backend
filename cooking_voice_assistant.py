@@ -268,11 +268,35 @@ def health_check():
 async def start_voice_session(request: VoiceSessionRequest):
     """Start voice session with working pipeline"""
     
-    if not SERVICES_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Required services not available")
+    print(f"🎤 VOICE-SESSION: Request received at {datetime.now()}")
+    print(f"🎤 VOICE-SESSION: Request data: {request}")
+    logger.info(f"🎤 Voice session request received")
     
-    if not all([GROQ_API_KEY, GOOGLE_API_KEY, DAILY_API_KEY]):
-        raise HTTPException(status_code=500, detail="Missing required API keys")
+    try:
+        print(f"🔍 VOICE-SESSION: Checking services availability...")
+        if not SERVICES_AVAILABLE:
+            print(f"❌ VOICE-SESSION: Services not available")
+            raise HTTPException(status_code=503, detail="Required services not available")
+        
+        print(f"🔍 VOICE-SESSION: Checking API keys...")
+        print(f"🔍 VOICE-SESSION: GROQ_API_KEY: {'SET' if GROQ_API_KEY else 'NOT SET'}")
+        print(f"🔍 VOICE-SESSION: GOOGLE_API_KEY: {'SET' if GOOGLE_API_KEY else 'NOT SET'}")
+        print(f"🔍 VOICE-SESSION: DAILY_API_KEY: {'SET' if DAILY_API_KEY else 'NOT SET'}")
+        
+        if not all([GROQ_API_KEY, GOOGLE_API_KEY, DAILY_API_KEY]):
+            print(f"❌ VOICE-SESSION: Missing required API keys")
+            raise HTTPException(status_code=500, detail="Missing required API keys")
+            
+        print(f"✅ VOICE-SESSION: All checks passed, proceeding with session creation...")
+        
+    except HTTPException as he:
+        print(f"❌ VOICE-SESSION: HTTP Exception: {he}")
+        logger.error(f"❌ Voice session HTTP error: {he}")
+        raise he
+    except Exception as e:
+        print(f"❌ VOICE-SESSION: Unexpected error in initial checks: {e}")
+        logger.error(f"❌ Voice session unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     
     try:
         import uuid
@@ -288,14 +312,17 @@ async def start_voice_session(request: VoiceSessionRequest):
             room_url, token = await create_daily_room()
         
         # Create pipeline
+        print(f"🔧 VOICE-SESSION: Creating voice pipeline...")
         task = await create_voice_pipeline(
             room_url=room_url,
             token=token,
             recipe_context=request.recipe_context or {},
             session_id=session_id
         )
+        print(f"✅ VOICE-SESSION: Voice pipeline created successfully")
         
         # Store session
+        print(f"💾 VOICE-SESSION: Storing session data...")
         active_sessions[session_id] = {
             "task": task,
             "room_url": room_url,
@@ -303,11 +330,15 @@ async def start_voice_session(request: VoiceSessionRequest):
             "recipe_context": request.recipe_context,
             "created_at": datetime.now().isoformat()
         }
+        print(f"✅ VOICE-SESSION: Session stored")
         
         # Start pipeline in background
+        print(f"🚀 VOICE-SESSION: Starting pipeline in background...")
         asyncio.create_task(run_pipeline(session_id, task))
+        print(f"✅ VOICE-SESSION: Pipeline started in background")
         
         logger.info(f"✅ Voice session {session_id} started successfully")
+        print(f"🎉 VOICE-SESSION: Session {session_id} completed successfully!")
         
         return VoiceSessionResponse(
             status="started",
@@ -317,6 +348,9 @@ async def start_voice_session(request: VoiceSessionRequest):
         )
         
     except Exception as e:
+        print(f"❌ VOICE-SESSION: Exception during session creation: {e}")
+        print(f"❌ VOICE-SESSION: Exception type: {type(e).__name__}")
+        print(f"❌ VOICE-SESSION: Full error: {str(e)}")
         logger.error(f"❌ Failed to start voice session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

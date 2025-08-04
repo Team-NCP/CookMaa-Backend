@@ -68,11 +68,12 @@ try:
         class CustomGroqTTSService(FrameProcessor):
             """Custom TTS service using Groq's hosted Play AI TTS models"""
             
-            def __init__(self, api_key: str, voice: str = "Celeste-PlayAI"):
+            def __init__(self, api_key: str, voice: str = "Celeste-PlayAI", transport=None):
                 super().__init__()
                 self.api_key = api_key
                 self.voice = voice
                 self.groq_client = None
+                self.transport = transport  # Direct reference to Daily.co transport
                 
                 if GROQ_AVAILABLE:
                     self.groq_client = Groq(api_key=api_key)
@@ -140,9 +141,23 @@ try:
                                 audio_frame.id = str(uuid.uuid4())
                             
                             print(f"✅ CUSTOM-TTS: Created AudioRawFrame - Rate: {sample_rate}Hz, Channels: {num_channels}")
-                            # Send audio frame downstream to output transport for playback
-                            from pipecat.processors.frame_processor import FrameDirection
-                            await self.push_frame(audio_frame, FrameDirection.DOWNSTREAM)
+                            
+                            # Try direct transport audio injection (bypass pipeline routing issues)
+                            if self.transport:
+                                try:
+                                    print(f"🔊 CUSTOM-TTS: Injecting audio directly to Daily.co transport")
+                                    # Try sending audio directly to transport
+                                    await self.transport.send_audio(audio_bytes, sample_rate, num_channels)
+                                    print(f"✅ CUSTOM-TTS: Audio sent directly to transport")
+                                except Exception as transport_error:
+                                    print(f"⚠️ CUSTOM-TTS: Direct transport failed: {transport_error}")
+                                    # Fallback to frame pushing (but this might fail with DailyOutputTransport)
+                                    from pipecat.processors.frame_processor import FrameDirection
+                                    await self.push_frame(audio_frame, FrameDirection.DOWNSTREAM)
+                            else:
+                                # No transport reference, use standard frame pushing
+                                from pipecat.processors.frame_processor import FrameDirection
+                                await self.push_frame(audio_frame, FrameDirection.DOWNSTREAM)
                             
                         except Exception as api_error:
                             print(f"❌ CUSTOM-TTS: Groq API error: {api_error}")
@@ -641,10 +656,10 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print(f"🔊 TTS: Using voice: {groq_voice}")
     
     try:
-        # Create custom Groq TTS service with voice configuration
-        print("🔊 TTS: Attempting custom TTS service creation...")
-        tts_service = GroqTTSService(api_key=GROQ_API_KEY, voice=groq_voice)
-        print("✅ TTS: Custom Groq TTS service created successfully")
+        # Create custom Groq TTS service with voice configuration and transport reference
+        print("🔊 TTS: Attempting custom TTS service creation with transport reference...")
+        tts_service = GroqTTSService(api_key=GROQ_API_KEY, voice=groq_voice, transport=transport)
+        print("✅ TTS: Custom Groq TTS service created successfully with transport")
         logger.info(f"✅ Custom Groq TTS service created with voice: {groq_voice}")
         
         # Test if the service has the right methods
@@ -767,13 +782,12 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print("   4. Daily.co Transport Output (Audio)")
     print("🔧 PIPELINE: NO CookingProcessor - testing basic STT/TTS only")
     
-    # Create pipeline with proper audio output routing
-    print("🔧 PIPELINE: Creating STT→TTS pipeline with proper audio output...")
+    # Create pipeline without DailyOutputTransport (direct transport injection)
+    print("🔧 PIPELINE: Creating STT→TTS pipeline with direct transport injection...")
     pipeline = Pipeline([
         transport.input(),        # Audio input from Daily.co
         stt_service,             # Groq STT: Audio → Text  
-        tts_service,             # Custom Groq TTS: Text → Audio
-        transport.output()       # Audio output to Daily.co (receives AudioRawFrames)
+        tts_service,             # Custom Groq TTS: Text → Audio (direct to transport)
     ])
     
     # TODO: Once echo works, create and add cooking_processor:
@@ -786,8 +800,8 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     #     transport.output()
     # ])
     
-    print("✅ PIPELINE: Echo pipeline created successfully with 4 components")
-    logger.info("✅ Echo pipeline: Daily.co → Groq STT → Custom Groq TTS → Daily.co Output")
+    print("✅ PIPELINE: Direct transport injection pipeline created successfully with 3 components")
+    logger.info("✅ Pipeline: Daily.co → Groq STT → Custom Groq TTS (→ direct transport)")
     
     # Create and return pipeline task
     print("📋 PIPELINE: Creating pipeline task...")

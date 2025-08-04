@@ -760,36 +760,12 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print("   4. Daily.co Transport Output (Audio)")
     print("🔧 PIPELINE: NO CookingProcessor - testing basic STT/TTS only")
     
-    # Add debug logging to see if text reaches TTS
-    class DebugProcessor(FrameProcessor):
-        def __init__(self):
-            super().__init__()
-            self.frame_count = 0
-            
-        async def process_frame(self, frame, direction):
-            self.frame_count += 1
-            frame_type = type(frame).__name__
-            
-            # Log important frames (let Pipecat handle StartFrame internally)
-            if frame_type == 'TextFrame':
-                print(f"🔍 DEBUG: TextFrame #{self.frame_count} going to TTS: '{frame.text}'")
-                logger.info(f"🔍 Text to TTS: {frame.text}")
-            elif frame_type == 'UserAudioRawFrame':
-                print(f"🎤 DEBUG: Audio frame #{self.frame_count} from user")
-            elif frame_type in ['StartFrame', 'EndFrame']:
-                print(f"🔄 DEBUG: System frame #{self.frame_count} - {frame_type}")
-            
-            # Always pass through all frames - let Pipecat handle lifecycle
-            await self.push_frame(frame, direction)
-    
-    debug_processor = DebugProcessor()
-    
-    # Simple echo pipeline with debug processor to see text flow
+    # Create direct STT→TTS pipeline without debug processor to avoid conflicts
+    print("🔧 PIPELINE: Creating DIRECT STT→TTS pipeline (no debug processor)...")
     pipeline = Pipeline([
         transport.input(),        # Audio input from Daily.co
         stt_service,             # Groq STT: Audio → Text  
-        debug_processor,         # Debug: Log text frames
-        tts_service,             # TTS: Text → Audio (echo)
+        tts_service,             # Custom Groq TTS: Text → Audio (direct echo)
         transport.output()       # Audio output to Daily.co
     ])
     
@@ -803,8 +779,8 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     #     transport.output()
     # ])
     
-    print("✅ PIPELINE: Echo pipeline created successfully with 4 components")
-    logger.info("✅ Echo pipeline created: Daily.co → Groq STT → Groq TTS → Daily.co (ECHO MODE)")
+    print("✅ PIPELINE: Direct echo pipeline created successfully with 3 components")
+    logger.info("✅ Direct echo pipeline: Daily.co → Groq STT → Custom Groq TTS → Daily.co")
     
     # Create and return pipeline task
     print("📋 PIPELINE: Creating pipeline task...")

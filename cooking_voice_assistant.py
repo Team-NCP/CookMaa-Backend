@@ -82,20 +82,6 @@ try:
             
             async def process_frame(self, frame, direction):
                 """Process text frames and convert to audio using Groq TTS"""
-                frame_type = type(frame).__name__
-                
-                # Handle StartFrame to initialize the TTS processor
-                if frame_type == 'StartFrame':
-                    print(f"🟢 CUSTOM-TTS: StartFrame received - TTS processor ready")
-                    await self.push_frame(frame, direction)
-                    return
-                
-                # Handle system frames
-                if frame_type in ['EndFrame', 'ErrorFrame']:
-                    print(f"🔴 CUSTOM-TTS: System frame - {frame_type}")
-                    await self.push_frame(frame, direction)
-                    return
-                
                 if isinstance(frame, TextFrame) and self.groq_client:
                     try:
                         text = frame.text.strip()
@@ -779,38 +765,21 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
         def __init__(self):
             super().__init__()
             self.frame_count = 0
-            self._started = False
             
         async def process_frame(self, frame, direction):
             self.frame_count += 1
             frame_type = type(frame).__name__
             
-            # Handle StartFrame to initialize the processor
-            if frame_type == 'StartFrame':
-                print(f"🟢 DEBUG: StartFrame received - processor ready")
-                self._started = True
-                await self.push_frame(frame, direction)
-                return
-            
-            # Handle EndFrame and system frames
-            if frame_type in ['EndFrame', 'ErrorFrame']:
-                print(f"🔴 DEBUG: System frame - {frame_type}")
-                await self.push_frame(frame, direction)
-                return
-            
-            # Only process frames after StartFrame received
-            if not self._started:
-                print(f"⚠️ DEBUG: Ignoring {frame_type} - waiting for StartFrame")
-                await self.push_frame(frame, direction)
-                return
-            
-            # Log important frames
+            # Log important frames (let Pipecat handle StartFrame internally)
             if frame_type == 'TextFrame':
                 print(f"🔍 DEBUG: TextFrame #{self.frame_count} going to TTS: '{frame.text}'")
                 logger.info(f"🔍 Text to TTS: {frame.text}")
             elif frame_type == 'UserAudioRawFrame':
                 print(f"🎤 DEBUG: Audio frame #{self.frame_count} from user")
+            elif frame_type in ['StartFrame', 'EndFrame']:
+                print(f"🔄 DEBUG: System frame #{self.frame_count} - {frame_type}")
             
+            # Always pass through all frames - let Pipecat handle lifecycle
             await self.push_frame(frame, direction)
     
     debug_processor = DebugProcessor()
@@ -842,6 +811,9 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     task = PipelineTask(pipeline)
     print("✅ PIPELINE: Pipeline task created successfully")
     logger.info("✅ Pipeline task created")
+    
+    # Ensure StartFrame is sent to initialize all processors
+    print("🚀 PIPELINE: Pipeline will send StartFrame on initialization")
     
     return task
 

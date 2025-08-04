@@ -140,9 +140,9 @@ try:
                                 audio_frame.id = str(uuid.uuid4())
                             
                             print(f"✅ CUSTOM-TTS: Created AudioRawFrame - Rate: {sample_rate}Hz, Channels: {num_channels}")
-                            # Send audio frame upstream to transport for output
+                            # Send audio frame downstream to output transport for playback
                             from pipecat.processors.frame_processor import FrameDirection
-                            await self.push_frame(audio_frame, FrameDirection.UPSTREAM)
+                            await self.push_frame(audio_frame, FrameDirection.DOWNSTREAM)
                             
                         except Exception as api_error:
                             print(f"❌ CUSTOM-TTS: Groq API error: {api_error}")
@@ -168,7 +168,7 @@ try:
                                 audio_frame.id = str(uuid.uuid4())
                             
                             print(f"🔄 CUSTOM-TTS: Generated fallback beep for: '{text}'")
-                            await self.push_frame(audio_frame, FrameDirection.UPSTREAM)
+                            await self.push_frame(audio_frame, FrameDirection.DOWNSTREAM)
                             
                     except Exception as e:
                         print(f"❌ CUSTOM-TTS: Error generating speech: {e}")
@@ -767,12 +767,13 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     print("   4. Daily.co Transport Output (Audio)")
     print("🔧 PIPELINE: NO CookingProcessor - testing basic STT/TTS only")
     
-    # Create direct STT→TTS pipeline - try without explicit output transport
-    print("🔧 PIPELINE: Creating DIRECT STT→TTS pipeline (no explicit output transport)...")
+    # Create pipeline with proper audio output routing
+    print("🔧 PIPELINE: Creating STT→TTS pipeline with proper audio output...")
     pipeline = Pipeline([
         transport.input(),        # Audio input from Daily.co
         stt_service,             # Groq STT: Audio → Text  
-        tts_service,             # Custom Groq TTS: Text → Audio (sends to transport automatically)
+        tts_service,             # Custom Groq TTS: Text → Audio
+        transport.output()       # Audio output to Daily.co (receives AudioRawFrames)
     ])
     
     # TODO: Once echo works, create and add cooking_processor:
@@ -785,8 +786,8 @@ async def create_pipecat_pipeline(room_url: str, token: str, recipe_context: Dic
     #     transport.output()
     # ])
     
-    print("✅ PIPELINE: Direct echo pipeline created successfully with 3 components")
-    logger.info("✅ Direct echo pipeline: Daily.co ↔ Groq STT → Custom Groq TTS ↑ Daily.co")
+    print("✅ PIPELINE: Echo pipeline created successfully with 4 components")
+    logger.info("✅ Echo pipeline: Daily.co → Groq STT → Custom Groq TTS → Daily.co Output")
     
     # Create and return pipeline task
     print("📋 PIPELINE: Creating pipeline task...")

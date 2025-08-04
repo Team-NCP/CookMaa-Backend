@@ -48,7 +48,7 @@ except ImportError as e:
 
 # API Configuration
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") 
+GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")  # Fixed: use GEMINI_API_KEY
 DAILY_API_KEY = os.getenv("DAILY_API_KEY")
 
 if GOOGLE_API_KEY:

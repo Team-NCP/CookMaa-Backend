@@ -1,4 +1,4 @@
-# CookMaa Backend Requirements - Fixed for Railway Deployment
+# CookMaa Backend Requirements - Simplified for Working Voice Pipeline
 
 # Core FastAPI dependencies
 fastapi>=0.104.0
@@ -6,16 +6,9 @@ uvicorn[standard]>=0.24.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 pydantic>=2.5.0
-aiofiles>=23.2.1
 
 # Google Generative AI for LLM (Gemini 1.5 Flash)
 google-generativeai>=0.3.0
 
-# Groq for ultra-fast STT/TTS
-groq>=0.4.0
-
-# Audio processing
-numpy>=1.24.0,<2.0.0
-
-# Pipecat with all required dependencies for your stack (using latest available version)
-pipecat-ai[daily,groq,google,silero]>=0.0.36
+# Pipecat with required services - Groq STT/TTS + Google LLM + Daily transport
+pipecat-ai[daily,groq,google,silero]>=0.0.77

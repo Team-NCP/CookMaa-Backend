@@ -82,12 +82,15 @@ try:
             
             async def process_frame(self, frame, direction):
                 """Process text frames and convert to audio using Groq TTS"""
+                # CRITICAL: Call parent class method first for proper StartFrame handling
+                await super().process_frame(frame, direction)
+                
+                # Only process TextFrames, let parent handle all other frames
                 if isinstance(frame, TextFrame) and self.groq_client:
                     try:
                         text = frame.text.strip()
                         if not text:
-                            await self.push_frame(frame, direction)
-                            return
+                            return  # Empty text, parent already handled frame
                         
                         print(f"🔊 CUSTOM-TTS: Converting text to speech: '{text}'")
                         
@@ -157,16 +160,11 @@ try:
                             
                             print(f"🔄 CUSTOM-TTS: Generated fallback beep for: '{text}'")
                             await self.push_frame(audio_frame, direction)
-                        return
-                        
+                            
                     except Exception as e:
                         print(f"❌ CUSTOM-TTS: Error generating speech: {e}")
-                        # Pass through original frame on error
-                        await self.push_frame(frame, direction)
-                        return
                 
-                # Pass through non-text frames
-                await self.push_frame(frame, direction)
+                # Parent class handles all non-TextFrame cases and frame passing
         
         GroqTTSService = CustomGroqTTSService
         GROQ_TTS_AVAILABLE = True

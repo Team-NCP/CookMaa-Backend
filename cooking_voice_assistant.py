@@ -128,12 +128,16 @@ try:
                             # Clean up temp file
                             os.unlink(temp_wav_path)
                             
-                            # Create audio frame for Pipecat
+                            # Create audio frame for Pipecat with proper ID
+                            import uuid
                             audio_frame = AudioRawFrame(
                                 audio=audio_bytes,
                                 sample_rate=sample_rate,
                                 num_channels=num_channels
                             )
+                            # Ensure frame has ID for TurnTrackingObserver
+                            if not hasattr(audio_frame, 'id') or audio_frame.id is None:
+                                audio_frame.id = str(uuid.uuid4())
                             
                             print(f"✅ CUSTOM-TTS: Created AudioRawFrame - Rate: {sample_rate}Hz, Channels: {num_channels}")
                             # Send audio frame upstream to transport for output
@@ -159,6 +163,9 @@ try:
                                 sample_rate=sample_rate,
                                 num_channels=1
                             )
+                            # Ensure fallback frame has ID too
+                            if not hasattr(audio_frame, 'id') or audio_frame.id is None:
+                                audio_frame.id = str(uuid.uuid4())
                             
                             print(f"🔄 CUSTOM-TTS: Generated fallback beep for: '{text}'")
                             await self.push_frame(audio_frame, FrameDirection.UPSTREAM)

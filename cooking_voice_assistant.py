@@ -308,8 +308,12 @@ async def start_voice_session(request: VoiceSessionRequest):
         room_url = request.room_url
         token = request.token
         
-        if not room_url:
+        if not room_url or room_url == "temp-room":
+            print(f"🏠 VOICE-SESSION: Creating new Daily.co room (room_url was: {room_url})")
             room_url, token = await create_daily_room()
+            print(f"🏠 VOICE-SESSION: Created room: {room_url}")
+        else:
+            print(f"🏠 VOICE-SESSION: Using provided room: {room_url}")
         
         # Create pipeline
         print(f"🔧 VOICE-SESSION: Creating voice pipeline...")
@@ -439,6 +443,43 @@ async def check_session_requirements():
         
     except Exception as e:
         return {"status": "debug_error", "error": str(e)}
+
+@app.post("/{session_id}/connect")
+async def connect_rtvi_client(session_id: str):
+    """RTVI client connection endpoint for iOS Pipecat client"""
+    
+    try:
+        print(f"🔗 RTVI: Client connecting to session {session_id}")
+        
+        if session_id not in active_sessions:
+            print(f"❌ RTVI: Session {session_id} not found")
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        session_data = active_sessions[session_id]
+        room_url = session_data["room_url"]
+        token = session_data.get("token")
+        
+        print(f"🏠 RTVI: Directing client to room: {room_url}")
+        print(f"🎫 RTVI: Token: {'PROVIDED' if token else 'NONE'}")
+        
+        # Return connection info for the iOS Pipecat client
+        return {
+            "room_url": room_url,
+            "token": token,
+            "config": {
+                "rtvi": {
+                    "voice": "groq",
+                    "llm": "gemini"
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"RTVI connection failed: {str(e)}"
+        print(f"❌ RTVI: {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
 
 if __name__ == "__main__":
     import uvicorn

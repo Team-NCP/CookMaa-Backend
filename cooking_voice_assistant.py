@@ -373,6 +373,39 @@ async def test_pipeline():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@app.get("/debug/check-session-requirements")
+async def check_session_requirements():
+    """Debug what's preventing voice session creation"""
+    try:
+        checks = {
+            "services_available": SERVICES_AVAILABLE,
+            "groq_api_key": bool(GROQ_API_KEY),
+            "google_api_key": bool(GOOGLE_API_KEY), 
+            "daily_api_key": bool(DAILY_API_KEY),
+            "all_keys_present": bool(GROQ_API_KEY and GOOGLE_API_KEY and DAILY_API_KEY)
+        }
+        
+        # Test Daily.co API connectivity
+        daily_test = "not_tested"
+        if DAILY_API_KEY:
+            try:
+                headers = {"Authorization": f"Bearer {DAILY_API_KEY}"}
+                response = requests.get("https://api.daily.co/v1/rooms", headers=headers, timeout=5)
+                daily_test = f"status_{response.status_code}"
+            except Exception as e:
+                daily_test = f"error_{str(e)[:50]}"
+        
+        checks["daily_api_test"] = daily_test
+        
+        return {
+            "status": "debug_complete",
+            "checks": checks,
+            "ready_for_voice_session": checks["services_available"] and checks["all_keys_present"]
+        }
+        
+    except Exception as e:
+        return {"status": "debug_error", "error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))

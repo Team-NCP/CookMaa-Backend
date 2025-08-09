@@ -343,29 +343,23 @@ async def handle_transcript(payload: Dict[str, Any]) -> Dict[str, Any]:
         
         print(f"🎤 User said: '{transcript}'")
         
-        # For now, use a default session (in production, map call_id to session_id)
-        session_id = call_id  # or extract from call metadata
+        # Use call_id as session identifier
+        session_id = call_id
         
-        # Get or create a default session for testing
+        # Link existing cooking session to this call if not already linked
         if session_id not in cooking_sessions:
-            # Create a default recipe session for testing
-            default_recipe = RecipeContext(
-                title="Test Recipe",
-                steps=[
-                    "Heat oil in a pan",
-                    "Add onions and sauté",
-                    "Add spices and cook",
-                    "Add vegetables",
-                    "Cook until done"
-                ],
-                step_index=0
-            )
-            
-            cooking_sessions[session_id] = CookingSession(
-                session_id=session_id,
-                recipe_context=default_recipe,
-                created_at=datetime.now().isoformat()
-            )
+            # Look for existing cooking session to link to this call
+            for existing_session_id, session in list(cooking_sessions.items()):
+                if existing_session_id != call_id and session.recipe_context:
+                    # Link this call to the existing session
+                    cooking_sessions[call_id] = session
+                    session_id = call_id
+                    print(f"🔗 Linked VAPI call {call_id} to cooking session {existing_session_id}")
+                    break
+        
+        # If still no session found, return error
+        if session_id not in cooking_sessions:
+            return {"message": "No active cooking session found. Please start cooking from a recipe in the app first."}
         
         # Process the message with cooking assistant
         session = cooking_sessions[session_id]
@@ -399,27 +393,10 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
         
         print(f"🔧 Function call: {function_name} for call: {call_id}")
         
-        # Get or create session for this call
+        # Get existing cooking session for this call
         session_id = call_id
         if session_id not in cooking_sessions:
-            # Create a default recipe session
-            default_recipe = RecipeContext(
-                title="Default Recipe",
-                steps=[
-                    "Heat oil in a pan over medium heat",
-                    "Add onions and sauté until golden brown",
-                    "Add spices and cook for 1 minute",
-                    "Add main ingredients and cook",
-                    "Season and serve hot"
-                ],
-                step_index=0
-            )
-            
-            cooking_sessions[session_id] = CookingSession(
-                session_id=session_id,
-                recipe_context=default_recipe,
-                created_at=datetime.now().isoformat()
-            )
+            return {"result": "No active cooking session found. Please start cooking from a recipe in the app first."}
         
         # Get session and process function call
         session = cooking_sessions[session_id]

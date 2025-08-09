@@ -390,22 +390,61 @@ async def handle_transcript(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"message": "Sorry, I had trouble processing that."}
 
 async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle VAPI function calls (if configured)"""
+    """Handle VAPI function calls with proper cooking logic"""
     
-    function_call = payload.get("message", {}).get("functionCall", {})
-    function_name = function_call.get("name", "")
-    
-    print(f"🔧 Function call: {function_name}")
-    
-    # Handle different function calls
-    if function_name == "next_step":
-        # Handle next step function
-        return {"result": "Moving to next step..."}
-    elif function_name == "repeat_step":
-        # Handle repeat step function
-        return {"result": "Repeating current step..."}
-    else:
-        return {"result": f"Unknown function: {function_name}"}
+    try:
+        function_call = payload.get("message", {}).get("functionCall", {})
+        function_name = function_call.get("name", "")
+        call_id = payload.get("call", {}).get("id", "")
+        
+        print(f"🔧 Function call: {function_name} for call: {call_id}")
+        
+        # Get or create session for this call
+        session_id = call_id
+        if session_id not in cooking_sessions:
+            # Create a default recipe session
+            default_recipe = RecipeContext(
+                title="Default Recipe",
+                steps=[
+                    "Heat oil in a pan over medium heat",
+                    "Add onions and sauté until golden brown",
+                    "Add spices and cook for 1 minute",
+                    "Add main ingredients and cook",
+                    "Season and serve hot"
+                ],
+                step_index=0
+            )
+            
+            cooking_sessions[session_id] = CookingSession(
+                session_id=session_id,
+                recipe_context=default_recipe,
+                created_at=datetime.now().isoformat()
+            )
+        
+        # Get session and process function call
+        session = cooking_sessions[session_id]
+        assistant = CookingAssistant(session)
+        
+        # Handle different function calls
+        if function_name == "next_step":
+            result = await assistant.handle_next_step()
+        elif function_name == "repeat_step":
+            result = await assistant.handle_repeat_step()
+        elif function_name == "previous_step":
+            result = await assistant.handle_previous_step()
+        else:
+            return {"result": f"Unknown function: {function_name}"}
+        
+        # Return the function result for VAPI
+        return {
+            "result": result.get("response", "Function executed"),
+            "action": result.get("action"),
+            "step_index": result.get("step_index")
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Function call error: {str(e)}")
+        return {"result": "Sorry, I had trouble with that command."}
 
 async def handle_call_end(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Handle call end"""

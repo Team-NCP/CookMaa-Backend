@@ -1,22 +1,11 @@
-# CookMaa Voice Assistant - Railway Compatible Requirements
-# Exact versions that work together for PipeCat voice pipeline
+# CookMaa VAPI Integration - Lightweight Requirements
 
-# Core web framework
+# Core FastAPI dependencies
 fastapi==0.115.6
 uvicorn[standard]==0.32.0
-
-# HTTP and utilities  
 requests==2.31.0
 python-dotenv==1.0.0
 pydantic==2.10.6
-aiofiles==23.2.1
 
-# AI services
+# Google Generative AI for LLM (Gemini 1.5 Flash)
 google-generativeai==0.8.3
-groq==0.11.0
-
-# Audio processing
-numpy==1.26.4
-
-# PipeCat with all required services for voice pipeline
-pipecat-ai[daily,groq,google,silero]==0.0.77

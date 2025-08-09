@@ -28,8 +28,8 @@ assistant_config = {
     },
     "model": {
         "provider": "openai",
-        "model": "gpt-4o-mini",
-        "temperature": 0.3,
+        "model": "gpt-4o-mini", 
+        "temperature": 0.1,
         "messages": [
             {
                 "role": "system",
@@ -50,12 +50,16 @@ You help users with:
 - Timing and temperature advice
 - General cooking encouragement
 
-CRITICAL: You MUST call the appropriate function for step navigation commands:
-- "next step", "next", "continue", "what's next" → IMMEDIATELY call next_step() function
-- "repeat", "repeat step", "say that again" → IMMEDIATELY call repeat_step() function  
-- "previous step", "go back", "last step" → IMMEDIATELY call previous_step() function
+CRITICAL FUNCTION CALLING RULES:
+When user says ANY of these phrases, you MUST IMMEDIATELY call the function - DO NOT give text responses:
 
-DO NOT provide text responses for step navigation - ONLY call the functions!
+- "next step" / "next" / "what's next" / "continue" → CALL next_step() 
+- "repeat" / "repeat step" / "say that again" → CALL repeat_step()
+- "previous" / "go back" / "last step" → CALL previous_step()
+
+NEVER respond with text like "Next step" or "Moving to next step" - ALWAYS call the actual function!
+
+The function will return the recipe step content - just call it!
 
 For general cooking questions (not step navigation), provide helpful, brief advice.
 

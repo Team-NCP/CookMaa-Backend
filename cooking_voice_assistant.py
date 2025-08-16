@@ -373,7 +373,7 @@ async def vapi_webhook(request: Request):
             return await handle_function_call(payload)
             
         elif message_type == "transcript":
-            # Handle user speech transcript
+            # Handle user speech transcript - process step navigation commands here
             return await handle_transcript(payload)
             
         elif message_type == "hang":
@@ -483,9 +483,19 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
         else:
             return {"result": f"Unknown function: {function_name}"}
         
-        # Return the function result for VAPI (must be in {"result": "text"} format for TTS)
+        # Return the function result for VAPI - try different response formats
         response_text = result.get("response", "Function executed")
-        return {"result": response_text}
+        
+        # Try multiple response formats to see which one VAPI accepts
+        response_formats = {
+            "result": response_text,
+            "message": response_text,
+            "response": response_text,
+            "text": response_text
+        }
+        
+        print(f"🔧 Returning function response: {response_formats}")
+        return response_formats
         
     except Exception as e:
         logger.error(f"❌ Function call error: {str(e)}")
@@ -543,6 +553,26 @@ async def get_active_sessions():
         })
     
     return {"active_sessions": sessions, "count": len(sessions)}
+
+@app.get("/debug/vapi-calls")
+async def get_vapi_calls():
+    """Get recent VAPI webhook calls for debugging"""
+    
+    try:
+        with open("/tmp/vapi_calls.log", "r") as f:
+            lines = f.readlines()
+            recent_calls = lines[-10:]  # Last 10 calls
+        
+        return {
+            "recent_calls_count": len(recent_calls),
+            "recent_calls": [line.strip() for line in recent_calls]
+        }
+    except FileNotFoundError:
+        return {
+            "recent_calls_count": 0,
+            "recent_calls": [],
+            "message": "No VAPI calls logged yet"
+        }
 
 @app.get("/debug/test-gemini")
 async def test_gemini():

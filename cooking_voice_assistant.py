@@ -136,8 +136,9 @@ Always be encouraging and helpful with cooking guidance!"""
             self.recipe.step_index += 1
             current_step = self.recipe.steps[self.recipe.step_index]
             
-            # Create a detailed response that includes the step content
-            response = f"Moving to step {self.recipe.step_index + 1} of {len(self.recipe.steps)}. {current_step}"
+            # Create a concise response for voice announcements
+            step_text = current_step[:120] + "..." if len(current_step) > 120 else current_step
+            response = f"Step {self.recipe.step_index + 1}: {step_text}"
             
             logger.info(f"Moved to step {self.recipe.step_index + 1}: {current_step}")
             
@@ -159,7 +160,8 @@ Always be encouraging and helpful with cooking guidance!"""
         
         if self.recipe.steps and self.recipe.step_index < len(self.recipe.steps):
             current_step = self.recipe.steps[self.recipe.step_index]
-            response = f"Let me repeat step {self.recipe.step_index + 1}: {current_step}"
+            step_text = current_step[:120] + "..." if len(current_step) > 120 else current_step
+            response = f"Step {self.recipe.step_index + 1}: {step_text}"
             
             logger.info(f"Repeating step {self.recipe.step_index + 1}")
             
@@ -182,7 +184,8 @@ Always be encouraging and helpful with cooking guidance!"""
             self.recipe.step_index -= 1
             current_step = self.recipe.steps[self.recipe.step_index]
             
-            response = f"Going back to step {self.recipe.step_index + 1} of {len(self.recipe.steps)}. {current_step}"
+            step_text = current_step[:120] + "..." if len(current_step) > 120 else current_step
+            response = f"Step {self.recipe.step_index + 1}: {step_text}"
             
             logger.info(f"Moved back to step {self.recipe.step_index + 1}: {current_step}")
             
@@ -194,7 +197,8 @@ Always be encouraging and helpful with cooking guidance!"""
             }
         else:
             first_step = self.recipe.steps[0] if self.recipe.steps else "No steps available"
-            response = f"You're already at the first step. Step 1: {first_step}"
+            first_step_text = first_step[:120] + "..." if len(first_step) > 120 else first_step
+            response = f"Step 1: {first_step_text}"
             
             return {
                 "response": response,
@@ -483,19 +487,18 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
         else:
             return {"result": f"Unknown function: {function_name}"}
         
-        # Return the function result for VAPI - try different response formats
+        # Return the function result for VAPI - use clean single format
         response_text = result.get("response", "Function executed")
         
-        # Try multiple response formats to see which one VAPI accepts
-        response_formats = {
-            "result": response_text,
-            "message": response_text,
-            "response": response_text,
-            "text": response_text
-        }
+        # Ensure response is concise for voice but includes full step content
+        if len(response_text) > 200:
+            # For very long steps, provide a shorter voice-friendly version
+            step_text = result.get("step_text", "")
+            step_index = result.get("step_index", 0)
+            response_text = f"Step {step_index + 1}: {step_text[:150]}..."
         
-        print(f"🔧 Returning function response: {response_formats}")
-        return response_formats
+        print(f"🔧 Returning function response: {response_text}")
+        return {"result": response_text}
         
     except Exception as e:
         logger.error(f"❌ Function call error: {str(e)}")

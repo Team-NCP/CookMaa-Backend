@@ -361,6 +361,10 @@ async def vapi_webhook(request: Request):
         print(f"🎤 VAPI Webhook received: {json.dumps(payload, indent=2)}")
         logger.info(f"VAPI webhook payload received")
         
+        # Log all webhook calls for debugging
+        with open("/tmp/vapi_calls.log", "a") as f:
+            f.write(f"{datetime.now().isoformat()}: {json.dumps(payload)}\n")
+        
         # Extract message details
         message_type = payload.get("message", {}).get("type", "")
         

@@ -139,7 +139,36 @@ Examples:
     "startSpeakingPlan": {
         "waitSeconds": 0.4,
         "smartEndpointingEnabled": True
-    }
+    },
+    "functions": [
+        {
+            "name": "next_step",
+            "description": "Move to the next cooking step in the recipe",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
+            "name": "repeat_step",
+            "description": "Repeat the current cooking step instructions",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
+            "name": "previous_step",
+            "description": "Go back to the previous cooking step",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    ]
 }
 
 def create_assistant():

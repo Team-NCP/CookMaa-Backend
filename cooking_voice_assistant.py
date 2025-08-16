@@ -108,8 +108,18 @@ Always be encouraging and helpful with cooking guidance!"""
         
         user_text_lower = user_text.lower().strip()
         
+        # Handle trigger messages from iOS for auto-announcements
+        if "start cooking session" in user_text_lower:
+            return await self.handle_welcome_announcement()
+        elif user_text_lower.startswith("read step "):
+            try:
+                step_num = int(user_text_lower.replace("read step ", ""))
+                return await self.handle_step_announcement(step_num)
+            except ValueError:
+                pass
+        
         # Handle step navigation commands
-        if "next step" in user_text_lower:
+        elif "next step" in user_text_lower:
             return await self.handle_next_step()
         elif "repeat" in user_text_lower and "step" in user_text_lower:
             return await self.handle_repeat_step()
@@ -120,15 +130,16 @@ Always be encouraging and helpful with cooking guidance!"""
             return await self.handle_conversation(user_text)
     
     async def handle_next_step(self) -> Dict[str, Any]:
-        """Move to next recipe step"""
+        """Move to next recipe step and announce it"""
         
         if self.recipe.step_index + 1 < len(self.recipe.steps):
             self.recipe.step_index += 1
             current_step = self.recipe.steps[self.recipe.step_index]
             
-            response = f"Step {self.recipe.step_index + 1}: {current_step}"
+            # Create a detailed response that includes the step content
+            response = f"Moving to step {self.recipe.step_index + 1} of {len(self.recipe.steps)}. {current_step}"
             
-            logger.info(f"Moved to step {self.recipe.step_index + 1}")
+            logger.info(f"Moved to step {self.recipe.step_index + 1}: {current_step}")
             
             return {
                 "response": response,
@@ -138,7 +149,7 @@ Always be encouraging and helpful with cooking guidance!"""
             }
         else:
             return {
-                "response": "Great job! You've completed all the steps for this recipe. Your dish should be ready!",
+                "response": "Excellent! You've completed all the steps for this recipe. Your delicious dish should be ready to serve!",
                 "action": "recipe_completed",
                 "step_index": self.recipe.step_index
             }
@@ -148,7 +159,9 @@ Always be encouraging and helpful with cooking guidance!"""
         
         if self.recipe.steps and self.recipe.step_index < len(self.recipe.steps):
             current_step = self.recipe.steps[self.recipe.step_index]
-            response = f"Step {self.recipe.step_index + 1}: {current_step}"
+            response = f"Let me repeat step {self.recipe.step_index + 1}: {current_step}"
+            
+            logger.info(f"Repeating step {self.recipe.step_index + 1}")
             
             return {
                 "response": response,
@@ -158,20 +171,20 @@ Always be encouraging and helpful with cooking guidance!"""
             }
         else:
             return {
-                "response": "No recipe step to repeat right now.",
+                "response": "I don't have a current step to repeat. Let me know if you need help with anything else!",
                 "action": "no_step"
             }
     
     async def handle_previous_step(self) -> Dict[str, Any]:
-        """Move to previous recipe step"""
+        """Move to previous recipe step and announce it"""
         
         if self.recipe.step_index > 0:
             self.recipe.step_index -= 1
             current_step = self.recipe.steps[self.recipe.step_index]
             
-            response = f"Going back to step {self.recipe.step_index + 1}: {current_step}"
+            response = f"Going back to step {self.recipe.step_index + 1} of {len(self.recipe.steps)}. {current_step}"
             
-            logger.info(f"Moved back to step {self.recipe.step_index + 1}")
+            logger.info(f"Moved back to step {self.recipe.step_index + 1}: {current_step}")
             
             return {
                 "response": response,
@@ -180,8 +193,11 @@ Always be encouraging and helpful with cooking guidance!"""
                 "step_text": current_step
             }
         else:
+            first_step = self.recipe.steps[0] if self.recipe.steps else "No steps available"
+            response = f"You're already at the first step. Step 1: {first_step}"
+            
             return {
-                "response": "You're already at the first step of the recipe.",
+                "response": response,
                 "action": "first_step",
                 "step_index": 0
             }
@@ -249,6 +265,45 @@ Always be encouraging and helpful with cooking guidance!"""
                 "action": "error",
                 "error": str(e)
             }
+    
+    async def handle_welcome_announcement(self) -> Dict[str, Any]:
+        """Handle welcome message and first step announcement"""
+        
+        recipe_title = self.recipe.title if hasattr(self.recipe, 'title') else "this recipe"
+        first_step = self.recipe.steps[0] if self.recipe.steps else "No steps available"
+        total_steps = len(self.recipe.steps)
+        
+        welcome_message = f"Hello! I'm Kukma, your cooking assistant. Let's cook {recipe_title} together! This recipe has {total_steps} steps. Here's step 1: {first_step}"
+        
+        logger.info(f"Welcome announcement: {welcome_message}")
+        
+        return {
+            "response": welcome_message,
+            "action": "welcome_announced",
+            "step_index": 0
+        }
+    
+    async def handle_step_announcement(self, step_num: int) -> Dict[str, Any]:
+        """Handle step announcement for specific step number"""
+        
+        if step_num <= 0 or step_num > len(self.recipe.steps):
+            return {
+                "response": "Invalid step number.",
+                "action": "error"
+            }
+        
+        step_index = step_num - 1
+        current_step = self.recipe.steps[step_index]
+        
+        announcement = f"Step {step_num}: {current_step}"
+        
+        logger.info(f"Step announcement: {announcement}")
+        
+        return {
+            "response": announcement,
+            "action": "step_announced",
+            "step_index": step_index
+        }
 
 # API Endpoints
 @app.get("/")
@@ -372,12 +427,8 @@ async def handle_transcript(payload: Dict[str, Any]) -> Dict[str, Any]:
         print(f"🤖 Kukma responds: '{response_text}'")
         logger.info(f"Generated response for transcript: {response_text}")
         
-        # Return response for VAPI to speak
-        return {
-            "message": response_text,
-            "action": result.get("action"),
-            "step_index": result.get("step_index")
-        }
+        # Return response for VAPI to speak (simple string format)
+        return response_text
         
     except Exception as e:
         logger.error(f"❌ Transcript handling error: {str(e)}")
@@ -412,12 +463,9 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
         else:
             return {"result": f"Unknown function: {function_name}"}
         
-        # Return the function result for VAPI
-        return {
-            "result": result.get("response", "Function executed"),
-            "action": result.get("action"),
-            "step_index": result.get("step_index")
-        }
+        # Return the function result for VAPI (must be in {"result": "text"} format for TTS)
+        response_text = result.get("response", "Function executed")
+        return {"result": response_text}
         
     except Exception as e:
         logger.error(f"❌ Function call error: {str(e)}")
@@ -437,6 +485,29 @@ async def handle_call_end(payload: Dict[str, Any]) -> Dict[str, Any]:
         logger.info(f"Cleaned up session: {call_id}")
     
     return {"message": "Call ended"}
+
+@app.post("/announce-step")
+async def announce_step(request: Request):
+    """Send announcement through VAPI by returning it as a response"""
+    
+    try:
+        payload = await request.json()
+        session_id = payload.get("session_id")
+        message = payload.get("message")
+        
+        print(f"📢 Announcement request for session {session_id}: {message}")
+        logger.info(f"Announcing: {message}")
+        
+        # Return the message in a format that can be used by VAPI
+        return {
+            "status": "success",
+            "message": message,
+            "speak": message  # This will be used for TTS
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Announcement error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sessions")
 async def get_active_sessions():

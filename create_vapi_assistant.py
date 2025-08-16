@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Get VAPI API key from environment
-VAPI_API_KEY = os.getenv("VAPI_API_KEY")
+# Get VAPI private key from environment (for API management)
+VAPI_API_KEY = os.getenv("VAPI_PRIVATE_KEY") or os.getenv("VAPI_API_KEY") or "39a39332-e4d3-412c-9f7f-679ef3963c9f"
 
 if not VAPI_API_KEY:
     print("❌ VAPI_API_KEY not found in environment")
@@ -28,7 +28,7 @@ assistant_config = {
     },
     "model": {
         "provider": "openai",
-        "model": "gpt-4o-mini", 
+        "model": "gpt-4o",
         "temperature": 0.1,
         "messages": [
             {
@@ -53,19 +53,22 @@ You help users with:
 WAKE WORD DETECTION:
 Listen for "Hey Kukma" or "Hey Cookma" followed by commands. When you hear these wake words, process the command that follows.
 
-CRITICAL FUNCTION CALLING RULES:
-When user says ANY of these phrases (with or without "Hey Kukma"), you MUST IMMEDIATELY call the function:
+⚠️ MANDATORY FUNCTION CALLING RULES ⚠️
 
-- "Hey Kukma, next step" / "next step" / "next" / "continue" → CALL next_step() 
-- "Hey Kukma, repeat" / "repeat step" / "say that again" → CALL repeat_step()
-- "Hey Kukma, go back" / "previous step" / "last step" → CALL previous_step()
+DO NOT TALK ABOUT CALLING FUNCTIONS - JUST CALL THEM!
 
-For wake word commands, acknowledge briefly then call the function.
-For direct commands (without wake word), just call the function immediately.
+When user says these EXACT words, IMMEDIATELY call the function (no conversation):
+- "next step" / "next" / "continue" → CALL next_step()
+- "repeat" / "repeat step" → CALL repeat_step()  
+- "previous" / "go back" → CALL previous_step()
 
-NEVER respond with text like "Next step" or "Moving to next step" - ALWAYS call the actual function!
+❌ WRONG: "I'll call the next step function for you"
+✅ RIGHT: Just call next_step() function immediately
 
-The function will return the recipe step content - just call it!
+❌ WRONG: "Next step coming up!"
+✅ RIGHT: Just call next_step() function immediately
+
+The function returns the actual recipe content - don't narrate, just execute!
 
 For general cooking questions (not step navigation), provide helpful, brief advice.
 
@@ -220,20 +223,12 @@ if __name__ == "__main__":
     print("🎯 VAPI Assistant Setup")
     print("=" * 50)
     
-    # Ask user what they want to do
-    print("Options:")
-    print("1. Create new CookMaa assistant")
-    print("2. Update existing assistant (e45d3c24-b950-44dc-8ba6-a7632218365c)")
+    # Update existing assistant with functions
+    existing_id = "e45d3c24-b950-44dc-8ba6-a7632218365c"
+    print(f"🔄 Updating assistant {existing_id} with function definitions...")
     
-    choice = input("Enter choice (1 or 2): ").strip()
-    
-    if choice == "1":
-        assistant_id = create_assistant()
-        if assistant_id:
-            print(f"\n🎉 Success! Use this assistant ID in your iOS app: {assistant_id}")
-    elif choice == "2":
-        existing_id = "e45d3c24-b950-44dc-8ba6-a7632218365c"
-        if update_existing_assistant(existing_id):
-            print(f"\n🎉 Success! Updated assistant: {existing_id}")
+    if update_existing_assistant(existing_id):
+        print(f"\n🎉 Success! Updated assistant: {existing_id}")
+        print("✅ Functions added: next_step, repeat_step, previous_step")
     else:
-        print("❌ Invalid choice")
+        print("❌ Failed to update assistant")

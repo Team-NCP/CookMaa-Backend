@@ -447,7 +447,18 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
         # Get existing cooking session for this call
         session_id = call_id
         if session_id not in cooking_sessions:
-            return {"result": "No active cooking session found. Please start cooking from a recipe in the app first."}
+            # Look for any active cooking session to link to this call
+            print(f"🔍 Call {call_id} not found in sessions. Available sessions: {list(cooking_sessions.keys())}")
+            for existing_session_id, session in list(cooking_sessions.items()):
+                if existing_session_id != call_id and session.recipe_context:
+                    # Link this call to the existing session
+                    cooking_sessions[call_id] = session
+                    session_id = call_id
+                    print(f"🔗 Linked VAPI call {call_id} to cooking session {existing_session_id}")
+                    break
+            else:
+                print(f"❌ No active cooking session found for call {call_id}")
+                return {"result": "No active cooking session found. Please start cooking from a recipe in the app first."}
         
         # Get session and process function call
         session = cooking_sessions[session_id]

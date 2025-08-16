@@ -28,7 +28,7 @@ assistant_config = {
     },
     "model": {
         "provider": "openai",
-        "model": "gpt-4o",
+        "model": "gpt-4o-mini",
         "temperature": 0.0,
         "messages": [
             {
@@ -53,12 +53,13 @@ You help users with:
 WAKE WORD DETECTION:
 Listen for "Hey Kukma" or "Hey Cookma" followed by commands. When you hear these wake words, process the command that follows.
 
-FUNCTION CALLING:
-- User says "next step" → Call next_step() 
-- User says "repeat" → Call repeat_step()
-- User says "previous" → Call previous_step()
+TOOL USAGE:
+When users say step navigation commands, use the available tools immediately:
+- "next step" or "next" → Use next_step tool
+- "repeat" or "repeat step" → Use repeat_step tool  
+- "previous" or "go back" → Use previous_step tool
 
-Never announce or describe function calls. Just execute them silently.
+Do not announce tool usage. Let the tool response speak for itself.
 
 For general cooking questions (not step navigation), provide helpful, brief advice.
 
@@ -67,6 +68,44 @@ Examples:
 - User: "repeat" → [Call repeat_step()]  
 - User: "how long to cook?" → "About 5-7 minutes should work!"
 """
+            }
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "next_step",
+                    "description": "Move to the next cooking step in the recipe",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function", 
+                "function": {
+                    "name": "repeat_step",
+                    "description": "Repeat the current cooking step instructions",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "previous_step", 
+                    "description": "Go back to the previous cooking step",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
             }
         ]
     },
@@ -100,36 +139,7 @@ Examples:
     "startSpeakingPlan": {
         "waitSeconds": 0.4,
         "smartEndpointingEnabled": True
-    },
-    "functions": [
-        {
-            "name": "next_step",
-            "description": "Move to the next step in the cooking recipe",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        },
-        {
-            "name": "repeat_step",
-            "description": "Repeat the current cooking step instructions",
-            "parameters": {
-                "type": "object", 
-                "properties": {},
-                "required": []
-            }
-        },
-        {
-            "name": "previous_step",
-            "description": "Go back to the previous cooking step",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    ]
+    }
 }
 
 def create_assistant():
@@ -212,12 +222,15 @@ if __name__ == "__main__":
     print("🎯 VAPI Assistant Setup")
     print("=" * 50)
     
-    # Update existing assistant with functions
-    existing_id = "e45d3c24-b950-44dc-8ba6-a7632218365c"
-    print(f"🔄 Updating assistant {existing_id} with function definitions...")
+    # Update existing assistant with tools-only configuration
+    existing_assistant_id = "b9c6dfa6-d816-4af9-b5e8-ac924baf6509"
+    print(f"🔄 Updating existing assistant {existing_assistant_id} with tool configuration...")
     
-    if update_existing_assistant(existing_id):
-        print(f"\n🎉 Success! Updated assistant: {existing_id}")
-        print("✅ Functions added: next_step, repeat_step, previous_step")
+    success = update_existing_assistant(existing_assistant_id)
+    
+    if success:
+        print(f"\n🎉 Success! Updated assistant: {existing_assistant_id}")
+        print("✅ Functions configured: next_step, repeat_step, previous_step")
+        print("📝 iOS app already uses this assistant ID")
     else:
         print("❌ Failed to update assistant")

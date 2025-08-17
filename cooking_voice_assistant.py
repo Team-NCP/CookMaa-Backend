@@ -358,12 +358,16 @@ async def vapi_webhook(request: Request):
         # Parse the webhook payload
         payload = await request.json()
         
+        # Extract headers for debugging
+        headers = dict(request.headers)
+        
         print(f"🎤 VAPI Webhook received: {json.dumps(payload, indent=2)}")
+        print(f"📋 Request headers: {json.dumps(headers, indent=2)}")
         logger.info(f"VAPI webhook payload received")
         
-        # Log all webhook calls for debugging
+        # Log all webhook calls for debugging with more detail
         with open("/tmp/vapi_calls.log", "a") as f:
-            f.write(f"{datetime.now().isoformat()}: {json.dumps(payload)}\n")
+            f.write(f"{datetime.now().isoformat()}: HEADERS={json.dumps(headers)} PAYLOAD={json.dumps(payload)}\n")
         
         # Extract message details
         message_type = payload.get("message", {}).get("type", "")
@@ -539,9 +543,16 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
         
         # Return the function result for VAPI - use clean single format with full content
         response_text = result.get("response", "Function executed")
+        response_data = {"result": response_text}
         
         print(f"🔧 Returning function response: {response_text}")
-        return {"result": response_text}
+        print(f"🔧 Full response data: {json.dumps(response_data, indent=2)}")
+        
+        # Log the response for debugging
+        with open("/tmp/vapi_responses.log", "a") as f:
+            f.write(f"{datetime.now().isoformat()}: FUNCTION_RESPONSE={json.dumps(response_data)}\n")
+        
+        return response_data
         
     except Exception as e:
         logger.error(f"❌ Function call error: {str(e)}")
@@ -619,6 +630,39 @@ async def get_vapi_calls():
             "recent_calls": [],
             "message": "No VAPI calls logged yet"
         }
+
+@app.get("/debug/vapi-responses")
+async def get_vapi_responses():
+    """Get recent VAPI webhook responses for debugging"""
+    
+    try:
+        with open("/tmp/vapi_responses.log", "r") as f:
+            lines = f.readlines()
+            recent_responses = lines[-10:]  # Last 10 responses
+        
+        return {
+            "recent_responses_count": len(recent_responses),
+            "recent_responses": [line.strip() for line in recent_responses]
+        }
+    except FileNotFoundError:
+        return {
+            "recent_responses_count": 0,
+            "recent_responses": [],
+            "message": "No VAPI responses logged yet"
+        }
+
+@app.get("/debug/live-logs")
+async def get_live_logs():
+    """Get both calls and responses for debugging"""
+    
+    calls_data = await get_vapi_calls()
+    responses_data = await get_vapi_responses()
+    
+    return {
+        "calls": calls_data,
+        "responses": responses_data,
+        "timestamp": datetime.now().isoformat()
+    }
 
 @app.get("/debug/test-gemini")
 async def test_gemini():

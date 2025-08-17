@@ -514,8 +514,9 @@ async def handle_tool_calls(payload: Dict[str, Any]) -> Dict[str, Any]:
         function_name = tool_call.get("function", {}).get("name", "")
         tool_call_id = tool_call.get("id", "")
         call_id = payload.get("call", {}).get("id", "unknown-call")
+        chat_id = payload.get("chat", {}).get("id", "")
         
-        print(f"🔧 Tool call: {function_name} (ID: {tool_call_id}) for call: {call_id}")
+        print(f"🔧 Tool call: {function_name} (ID: {tool_call_id}) for call: {call_id}, chat: {chat_id}")
         
         # Convert to function-call format and handle
         function_call_payload = {
@@ -528,6 +529,9 @@ async def handle_tool_calls(payload: Dict[str, Any]) -> Dict[str, Any]:
             },
             "call": {
                 "id": call_id
+            },
+            "chat": {
+                "id": chat_id
             }
         }
         
@@ -545,14 +549,18 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
         function_call = payload.get("message", {}).get("functionCall", {})
         function_name = function_call.get("name", "")
         call_id = payload.get("call", {}).get("id", "")
+        chat_id = payload.get("chat", {}).get("id", "")
         
-        print(f"🔧 Function call: {function_name} for call: {call_id}")
+        # Use chat_id as primary identifier, fallback to call_id
+        session_identifier = chat_id if chat_id else call_id
+        
+        print(f"🔧 Function call: {function_name} for call: {call_id}, chat: {chat_id}, using: {session_identifier}")
         
         # Get existing cooking session for this call
-        session_id = call_id
+        session_id = session_identifier
         if session_id not in cooking_sessions:
             # Look for any active cooking session to link to this call
-            print(f"🔍 Call {call_id} not found in sessions. Available sessions: {list(cooking_sessions.keys())}")
+            print(f"🔍 Session {session_identifier} not found. Available sessions: {list(cooking_sessions.keys())}")
             
             # Find the most recent session (likely the active one)
             if cooking_sessions:
@@ -562,11 +570,11 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
                 session = cooking_sessions[latest_session_id]
                 
                 # Link this call to the latest session
-                cooking_sessions[call_id] = session
-                session_id = call_id
-                print(f"🔗 Linked VAPI call {call_id} to latest cooking session {latest_session_id}")
+                cooking_sessions[session_identifier] = session
+                session_id = session_identifier
+                print(f"🔗 Linked VAPI session {session_identifier} to latest cooking session {latest_session_id}")
             else:
-                print(f"❌ No active cooking session found for call {call_id}")
+                print(f"❌ No active cooking session found for session {session_identifier}")
                 return {"result": "No active cooking session found. Please start cooking from a recipe in the app first."}
         
         # Get session and process function call

@@ -9,12 +9,12 @@
   "model": {
     "messages": [
       {
-        "content": "You are Kukma, a helpful cooking voice assistant for the CookMaa app.\n\nIMPORTANT: Keep responses very brief (1-2 sentences max) for voice interaction.\nBe warm, encouraging, and practical. Always relate to the current cooking context.\n\nYou help users with:\n- Recipe step navigation (next step, repeat, previous step)\n- Cooking tips and guidance\n- Ingredient questions\n- Timing and temperature advice\n- General cooking encouragement\n\nWhen users say commands like 'next step', 'repeat', or 'previous step', acknowledge them but note that step navigation is handled by the backend system.\n\nFor general cooking questions, provide helpful, concise advice based on common cooking knowledge.\n\nAlways be encouraging: 'You're doing great!' 'That sounds perfect!' 'Keep it up!'",
+        "content": "You are Kukma, a helpful cooking voice assistant for the CookMaa app.\n\nIMPORTANT: Keep responses very brief (1-2 sentences max) for voice interaction.\nBe warm, encouraging, and practical. Always relate to the current cooking context.\n\nYou have access to these cooking functions that you MUST use when appropriate:\n- When users say 'next step', 'go to next step', 'move on', or 'continue' → CALL the next_step function\n- When users say 'repeat', 'repeat step', 'say that again', or 'what was that' → CALL the repeat_step function  \n- When users say 'previous step', 'go back', 'last step', or 'previous' → CALL the previous_step function\n\nALWAYS use these functions for step navigation commands - don't just talk about the steps, actually call the functions!\n\nFor general cooking questions, provide helpful, concise advice based on common cooking knowledge.\n\nAlways be encouraging: 'You're doing great!' 'That sounds perfect!' 'Keep it up!'",
         "role": "system"
       }
     ],
     "model": "gpt-4o-mini",
-    "temperature": 0.3,
+    "temperature": 0.1,
     "provider": "openai"
   },
   "voice": {
@@ -50,7 +50,7 @@
   "functions": [
     {
       "name": "next_step",
-      "description": "Move to the next cooking step in the recipe",
+      "description": "Call this function when user wants to advance to the next cooking step. Use when they say: 'next step', 'go to next step', 'move on', 'continue', 'what's next', 'next'",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -59,7 +59,7 @@
     },
     {
       "name": "repeat_step", 
-      "description": "Repeat the current cooking step",
+      "description": "Call this function when user wants to hear the current cooking step again. Use when they say: 'repeat', 'repeat step', 'say that again', 'what was that', 'repeat that', 'tell me again'",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -68,7 +68,7 @@
     },
     {
       "name": "previous_step",
-      "description": "Go back to the previous cooking step",
+      "description": "Call this function when user wants to go back to the previous cooking step. Use when they say: 'previous step', 'go back', 'last step', 'previous', 'back', 'step back'",
       "parameters": {
         "type": "object", 
         "properties": {},

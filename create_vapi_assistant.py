@@ -73,39 +73,15 @@ Examples:
         "tools": [
             {
                 "type": "function",
-                "function": {
-                    "name": "next_step",
-                    "description": "Move to the next cooking step in the recipe",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function", 
-                "function": {
-                    "name": "repeat_step",
-                    "description": "Repeat the current cooking step instructions",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
+                "toolId": "126301e1-c09a-416e-b9aa-a955a1f6eeb1"
             },
             {
                 "type": "function",
-                "function": {
-                    "name": "previous_step", 
-                    "description": "Go back to the previous cooking step",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
+                "toolId": "5f9d1dd9-40f3-4095-946f-4e24c354a923"  
+            },
+            {
+                "type": "function",
+                "toolId": "dcec8014-c174-4977-aeb0-61235617b4a0"
             }
         ]
     },
@@ -139,36 +115,7 @@ Examples:
     "startSpeakingPlan": {
         "waitSeconds": 0.4,
         "smartEndpointingEnabled": True
-    },
-    "functions": [
-        {
-            "name": "next_step",
-            "description": "Move to the next cooking step in the recipe",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        },
-        {
-            "name": "repeat_step",
-            "description": "Repeat the current cooking step instructions",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        },
-        {
-            "name": "previous_step",
-            "description": "Go back to the previous cooking step",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    ]
+    }
 }
 
 def create_assistant():

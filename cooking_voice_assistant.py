@@ -406,6 +406,37 @@ async def vapi_webhook(request: Request):
             # Unknown message type - log the full payload for debugging
             logger.warning(f"Unknown VAPI message type: '{message_type}'")
             logger.warning(f"Full payload: {json.dumps(payload, indent=2)}")
+            
+            # Check if this might be a tool call with different format
+            if "toolCall" in json.dumps(payload) or "function" in json.dumps(payload):
+                print(f"🔧 Possible tool call with unknown format - attempting to handle")
+                
+                # Try to extract function name from anywhere in the payload
+                payload_str = json.dumps(payload).lower()
+                if "next_step" in payload_str:
+                    tool_name = "next_step"
+                elif "repeat_step" in payload_str:
+                    tool_name = "repeat_step"
+                elif "previous_step" in payload_str:
+                    tool_name = "previous_step"
+                else:
+                    return {"message": "Unknown message type"}
+                
+                # Create fake function call format
+                fake_payload = {
+                    "message": {
+                        "type": "function-call",
+                        "functionCall": {
+                            "name": tool_name,
+                            "arguments": {}
+                        }
+                    },
+                    "call": {
+                        "id": payload.get("call", {}).get("id", "unknown-call")
+                    }
+                }
+                return await handle_function_call(fake_payload)
+            
             return {"message": "Unknown message type"}
             
     except Exception as e:

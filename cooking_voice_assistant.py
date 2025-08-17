@@ -573,6 +573,12 @@ async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
                 cooking_sessions[session_identifier] = session
                 session_id = session_identifier
                 print(f"🔗 Linked VAPI session {session_identifier} to latest cooking session {latest_session_id}")
+                
+                # For first-time linking, return a welcome message with recipe name
+                recipe_name = session.recipe_context.title if hasattr(session, 'recipe_context') and session.recipe_context else "your recipe"
+                if function_name == "next_step" and session.step_index == 0:
+                    welcome_msg = f"Perfect! Let's cook {recipe_name} together. We have {session.total_steps} steps ahead. Ready to begin?"
+                    return {"result": welcome_msg}
             else:
                 print(f"❌ No active cooking session found for session {session_identifier}")
                 return {"result": "No active cooking session found. Please start cooking from a recipe in the app first."}

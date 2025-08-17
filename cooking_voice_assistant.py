@@ -398,6 +398,11 @@ async def vapi_webhook(request: Request):
             # Handle function calls (if using VAPI functions)
             return await handle_function_call(payload)
             
+        elif message_type == "tool-calls":
+            # Handle VAPI tool calls (this is the format VAPI actually sends)
+            print(f"🔧 Processing tool-calls message type")
+            return await handle_tool_calls(payload)
+            
         elif message_type == "transcript":
             # Handle user speech transcript - process step navigation commands here
             return await handle_transcript(payload)
@@ -495,6 +500,43 @@ async def handle_transcript(payload: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"❌ Transcript handling error: {str(e)}")
         return {"message": "Sorry, I had trouble processing that."}
+
+async def handle_tool_calls(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle VAPI tool-calls message type"""
+    
+    try:
+        tool_calls = payload.get("message", {}).get("toolCalls", [])
+        if not tool_calls:
+            return {"result": "No tool calls found"}
+        
+        # Process the first tool call
+        tool_call = tool_calls[0]
+        function_name = tool_call.get("function", {}).get("name", "")
+        tool_call_id = tool_call.get("id", "")
+        call_id = payload.get("call", {}).get("id", "unknown-call")
+        
+        print(f"🔧 Tool call: {function_name} (ID: {tool_call_id}) for call: {call_id}")
+        
+        # Convert to function-call format and handle
+        function_call_payload = {
+            "message": {
+                "type": "function-call",
+                "functionCall": {
+                    "name": function_name,
+                    "arguments": tool_call.get("function", {}).get("arguments", {})
+                }
+            },
+            "call": {
+                "id": call_id
+            }
+        }
+        
+        # Process with existing function call handler
+        return await handle_function_call(function_call_payload)
+        
+    except Exception as e:
+        logger.error(f"❌ Tool calls handling error: {str(e)}")
+        return {"result": "Sorry, I had trouble with that command."}
 
 async def handle_function_call(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Handle VAPI function calls with proper cooking logic"""

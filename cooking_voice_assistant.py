@@ -368,6 +368,28 @@ async def vapi_webhook(request: Request):
         # Extract message details
         message_type = payload.get("message", {}).get("type", "")
         
+        # Check if this is a direct tool test call (has X-VAPI-Tool header)
+        headers = dict(request.headers)
+        if "x-vapi-tool" in headers:
+            tool_name = headers["x-vapi-tool"]
+            print(f"🔧 Direct tool test call for: {tool_name}")
+            print(f"🔧 Tool payload: {json.dumps(payload, indent=2)}")
+            
+            # Handle direct tool calls by simulating function call format
+            fake_payload = {
+                "message": {
+                    "type": "function-call",
+                    "functionCall": {
+                        "name": tool_name,
+                        "arguments": {}
+                    }
+                },
+                "call": {
+                    "id": "tool-test-call"
+                }
+            }
+            return await handle_function_call(fake_payload)
+        
         if message_type == "function-call":
             # Handle function calls (if using VAPI functions)
             return await handle_function_call(payload)
@@ -381,8 +403,9 @@ async def vapi_webhook(request: Request):
             return await handle_call_end(payload)
             
         else:
-            # Unknown message type
-            logger.warning(f"Unknown VAPI message type: {message_type}")
+            # Unknown message type - log the full payload for debugging
+            logger.warning(f"Unknown VAPI message type: '{message_type}'")
+            logger.warning(f"Full payload: {json.dumps(payload, indent=2)}")
             return {"message": "Unknown message type"}
             
     except Exception as e:
